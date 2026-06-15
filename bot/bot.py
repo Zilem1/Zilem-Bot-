@@ -1,4 +1,3 @@
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -8,31 +7,28 @@ import string
 import os
 import asyncio
 from datetime import datetime
+from scraper import scrape_tiktok
 
 # ── Config ────────────────────────────────────────────────────────────────────
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
-GUILD_ID   = int(os.getenv("DISCORD_GUILD_ID", "0"))  # Your server ID
+GUILD_ID   = int(os.getenv("DISCORD_GUILD_ID", "0"))
 DB_PATH    = os.getenv("DB_PATH", "data/keys.db")
 
-# Map Discord role names (lowercase) → tier slug
-# Edit these to match your actual Discord role names exactly (case-insensitive)
 ROLE_TIER_MAP = {
-    "admins":  "donor",     # Admins get top tier too
+    "admins":  "donor",
     "donor":   "donor",
     "booster": "booster",
     "helper":  "helper",
-    "members": "member",    # Your server role is "Members" (plural)
-    "member":  "member",    # also accept singular, just in case
+    "members": "member",
+    "member":  "member",
 }
-# Tier display info — "code" is the single-letter tier code embedded in the key
 TIER_INFO = {
-    "donor":   {"label": "Donor",   "color": 0xa78bfa, "mb": 1024,   "emoji": "💜", "code": "D"},
-    "booster": {"label": "Booster", "color": 0xfbbf24, "mb": 750,    "emoji": "⭐", "code": "B"},
-    "helper":  {"label": "Helper",  "color": 0x34d399, "mb": 500,    "emoji": "🟢", "code": "H"},
-    "member":  {"label": "Member",  "color": 0x60a5fa, "mb": 150,    "emoji": "🔵", "code": "M"},
-    "guest":   {"label": "Guest",   "color": 0x888888, "mb": 25,     "emoji": "⚪", "code": "G"},
+    "donor":   {"label": "Donor",   "color": 0xa78bfa, "mb": 1024, "emoji": "💜", "code": "D"},
+    "booster": {"label": "Booster", "color": 0xfbbf24, "mb": 750,  "emoji": "⭐", "code": "B"},
+    "helper":  {"label": "Helper",  "color": 0x34d399, "mb": 500,  "emoji": "🟢", "code": "H"},
+    "member":  {"label": "Member",  "color": 0x60a5fa, "mb": 150,  "emoji": "🔵", "code": "M"},
+    "guest":   {"label": "Guest",   "color": 0x888888, "mb": 25,   "emoji": "⚪", "code": "G"},
 }
-# Role priority (highest first)
 TIER_PRIORITY = ["donor", "booster", "helper", "member", "guest"]
 
 # ── Database ──────────────────────────────────────────────────────────────────
@@ -58,43 +54,36 @@ def get_db():
     return sqlite3.connect(DB_PATH)
 
 def upsert_key(discord_id, username, display_name, avatar_url, tier, key=None):
-    """Create or update a user's key. Returns (key, is_new).
-    If the tier changed, the key is regenerated since it encodes the tier code."""
     conn = get_db()
     now = datetime.utcnow().isoformat()
     existing = conn.execute(
         "SELECT key, tier FROM keys WHERE discord_id = ?", (discord_id,)
     ).fetchone()
-
     if existing:
         existing_key, existing_tier = existing
         if existing_tier != tier:
-            # Tier changed -> regenerate key so the tier code stays accurate
             new_key = key or generate_key(tier)
             conn.execute("""
                 UPDATE keys SET key=?, username=?, display_name=?, avatar_url=?, tier=?, last_seen=?
                 WHERE discord_id=?
             """, (new_key, username, display_name, avatar_url, tier, now, discord_id))
-            conn.commit()
-            conn.close()
+            conn.commit(); conn.close()
             return new_key, False
         else:
             conn.execute("""
                 UPDATE keys SET username=?, display_name=?, avatar_url=?, tier=?, last_seen=?
                 WHERE discord_id=?
             """, (username, display_name, avatar_url, tier, now, discord_id))
-            conn.commit()
-            conn.close()
-            return existing_key, False  # key, is_new
+            conn.commit(); conn.close()
+            return existing_key, False
     else:
         new_key = key or generate_key(tier)
         conn.execute("""
             INSERT INTO keys (key, discord_id, username, display_name, avatar_url, tier, created_at)
             VALUES (?,?,?,?,?,?,?)
         """, (new_key, discord_id, username, display_name, avatar_url, tier, now))
-        conn.commit()
-        conn.close()
-        return new_key, True  # key, is_new
+        conn.commit(); conn.close()
+        return new_key, True
 
 def get_key_info(key):
     conn = get_db()
@@ -115,8 +104,7 @@ def get_user_key(discord_id):
 def revoke_key(discord_id):
     conn = get_db()
     affected = conn.execute("DELETE FROM keys WHERE discord_id=?", (discord_id,)).rowcount
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
     return affected > 0
 
 def list_all_keys():
@@ -127,50 +115,40 @@ def list_all_keys():
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def generate_key(tier: str):
-    """Generates a ZILEM-{TIER_CODE}-XXXX-XXXX style key."""
-    code = TIER_INFO.get(tier, TIER_INFO["guest"])["code"]
+    code  = TIER_INFO.get(tier, TIER_INFO["guest"])["code"]
     chars = string.ascii_uppercase + string.digits
-    segments = [''.join(secrets.choice(chars) for _ in range(4)) for _ in range(2)]
-    return f"ZILEM-{code}-{segments[0]}-{segments[1]}"
+    segs  = [''.join(secrets.choice(chars) for _ in range(4)) for _ in range(2)]
+    return f"ZILEM-{code}-{segs[0]}-{segs[1]}"
 
 def get_user_tier(member: discord.Member) -> str:
-    """Returns the highest tier matching any of the member's role names."""
     role_names = {r.name.lower() for r in member.roles}
     for tier in TIER_PRIORITY:
         if tier == "guest":
             continue
-        # Does the member hold any Discord role mapped to this tier?
         if any(slug == tier for role, slug in ROLE_TIER_MAP.items() if role in role_names):
             return tier
     return "guest"
 
 def tier_embed(key_info: dict, is_new: bool) -> discord.Embed:
-    tier = key_info["tier"]
-    info = TIER_INFO.get(tier, TIER_INFO["guest"])
-    title = "🔑 Your Key" if not is_new else "✨ Key Generated!"
-    embed = discord.Embed(
-        title=title,
-        color=info["color"]
-    )
+    tier  = key_info["tier"]
+    info  = TIER_INFO.get(tier, TIER_INFO["guest"])
+    title = "✨ Key Generated!" if is_new else "🔑 Your Key"
+    embed = discord.Embed(title=title, color=info["color"])
     embed.add_field(name="License Key", value=f"```{key_info['key']}```", inline=False)
     embed.add_field(name="Tier",        value=f"{info['emoji']} **{info['label']}**", inline=True)
-    mb = info["mb"]
-    limit = f"{mb/1024:.0f} GB" if mb >= 1024 else f"{mb} MB"
+    mb    = info["mb"]
+    limit = f"{mb//1024} GB" if mb >= 1024 else f"{mb} MB"
     embed.add_field(name="File Limit",  value=limit, inline=True)
-    embed.add_field(
-        name="Activate at",
-        value="[zilem.netlify.app/](https://zilem.netlify.app/)",
-        inline=False
-    )
+    embed.add_field(name="Activate at", value="[zilem.netlify.app/](https://zilem.netlify.app/)", inline=False)
     if key_info.get("avatar_url"):
         embed.set_thumbnail(url=key_info["avatar_url"])
     embed.set_footer(text=f"User: {key_info['username']} · ID: {key_info['discord_id']}")
     return embed
 
 # ── Bot setup ─────────────────────────────────────────────────────────────────
-intents = discord.Intents.default()
+intents        = discord.Intents.default()
 intents.members = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot  = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 @bot.event
@@ -189,19 +167,15 @@ async def getkey(interaction: discord.Interaction):
     if not member:
         await interaction.followup.send("❌ Could not find you in this server.", ephemeral=True)
         return
-
-    tier     = get_user_tier(member)
-    username = str(member)
-    display  = member.display_name
-    avatar   = str(member.display_avatar.url) if member.display_avatar else None
-
-    prior = get_user_key(str(member.id))
+    tier       = get_user_tier(member)
+    username   = str(member)
+    display    = member.display_name
+    avatar     = str(member.display_avatar.url) if member.display_avatar else None
+    prior      = get_user_key(str(member.id))
     prior_tier = prior["tier"] if prior else None
-
     key, is_new = upsert_key(member.id, username, display, avatar, tier)
-    key_info = get_user_key(str(member.id))
-
-    embed = tier_embed(key_info, is_new)
+    key_info   = get_user_key(str(member.id))
+    embed      = tier_embed(key_info, is_new)
     if is_new:
         msg = "Your key is ready. Keep it safe!"
     elif prior_tier != tier:
@@ -216,11 +190,71 @@ async def mykey(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     info = get_user_key(str(interaction.user.id))
     if not info:
-        await interaction.followup.send(
-            "❌ You don't have a key yet. Use `/getkey` to generate one.", ephemeral=True
-        )
+        await interaction.followup.send("❌ You don't have a key yet. Use `/getkey` to generate one.", ephemeral=True)
         return
     embed = tier_embed(info, False)
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+# ── /check ────────────────────────────────────────────────────────────────────
+@tree.command(name="check", description="Check a TikTok video metadata and stats")
+@app_commands.describe(url="TikTok video URL")
+async def check(interaction: discord.Interaction, url: str):
+    await interaction.response.defer(ephemeral=True)
+
+    if "tiktok.com" not in url:
+        await interaction.followup.send("❌ Please provide a valid TikTok URL.", ephemeral=True)
+        return
+
+    try:
+        d = await scrape_tiktok(url)
+    except Exception as e:
+        await interaction.followup.send(f"❌ {e}", ephemeral=True)
+        return
+
+    if d["account_status"] == "safe":
+        status_str = "🟢 Safe *(Active)*"
+    elif d["account_status"] == "private":
+        status_str = "🔒 Private"
+    else:
+        status_str = "🔴 Banned"
+
+    verified_mark = " ✓" if d["verified"] else ""
+
+    embed = discord.Embed(
+        title=f"🔍 {d['author']}{verified_mark} 😛 [{d['resolution']}{d['fps']}FPS]",
+        url=url,
+        description=d["hashtags"] or d["title"],
+        color=0x1a1a2e,
+    )
+    embed.add_field(
+        name="\u200b",
+        value=f"@{d['author']} • 🌐 {d['region']}\n⏱️ Duration: {d['duration']} | 📅 Uploaded: {d['uploaded_at']}",
+        inline=False,
+    )
+    embed.add_field(
+        name="⚙️ TECHNICAL METADATA",
+        value="\n".join([
+            f"• Engine: `{d['engine']}`",
+            f"• Web Quality: `{d['web_quality']}`",
+            f"• Phone Quality: `{d['phone_quality']}`",
+            f"• Framerate: `{d['fps']} FPS`",
+            f"• File Size: `{d['file_size_mb']} MB`",
+            f"• Account Status: {status_str}",
+            f"• Video ID: `{d['video_id']}`",
+        ]),
+        inline=False,
+    )
+    embed.add_field(
+        name="📊 ENGAGEMENT METRICS",
+        value=f"👁️ {d['views']}  ❤️ {d['likes']}  💬 {d['comments']}  ⭐ {d['bookmarks']}  🔁 {d['shares']}  📥 {d['downloads']}",
+        inline=False,
+    )
+    if d.get("thumbnail"):
+        embed.set_thumbnail(url=d["thumbnail"])
+
+    await interaction.channel.send(
+        f"🔍 **@{interaction.user.name}** just checked a TikTok video using `/check`!"
+    )
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ── /revokekey (admin) ────────────────────────────────────────────────────────
@@ -245,7 +279,7 @@ async def listkeys(interaction: discord.Interaction):
         await interaction.followup.send("No keys in the database yet.", ephemeral=True)
         return
     lines = []
-    for k in all_keys[:25]:  # Discord embed limit
+    for k in all_keys[:25]:
         info = TIER_INFO.get(k["tier"], TIER_INFO["guest"])
         lines.append(f"{info['emoji']} `{k['key']}` — **{k['display_name']}** ({k['tier']})")
     embed = discord.Embed(title=f"🗝️ Active Keys ({len(all_keys)})", description="\n".join(lines), color=0x7c3aed)
@@ -257,7 +291,7 @@ async def listkeys(interaction: discord.Interaction):
 async def synckey(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     all_keys = list_all_keys()
-    updated = 0
+    updated  = 0
     for k in all_keys:
         member = interaction.guild.get_member(int(k["discord_id"]))
         if member:
@@ -277,3 +311,4 @@ async def on_app_command_error(interaction: discord.Interaction, error):
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
+                            
