@@ -5,7 +5,8 @@ nixPkgs = ["python312Full"]
 [phases.install]
 cmds = [
   "python3 -m venv /app/venv",
-  "/app/venv/bin/pip install -r requirements.txt"
+  "/app/venv/bin/pip install -r requirements.txt",
+  "/app/venv/bin/pip install yt-dlp"
 ]
 
 [start]
