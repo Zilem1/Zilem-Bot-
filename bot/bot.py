@@ -7,7 +7,7 @@ import string
 import os
 import asyncio
 from datetime import datetime
-from scraper import scrape_tiktok
+from bot.scraper import scrape_tiktok
 
 # ── Config ────────────────────────────────────────────────────────────────────
 BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
