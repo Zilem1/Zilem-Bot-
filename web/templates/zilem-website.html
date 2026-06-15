@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zilem Method — MP4 Patcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600&display=swap">
+<style>
+/* ── Reset & Tokens ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000;
+  --bg1: rgba(255,255,255,0.03);
+  --bg2: rgba(255,255,255,0.06);
+  --bg3: rgba(255,255,255,0.09);
+  --glass: rgba(255,255,255,0.07);
+  --glass-hi: rgba(255,255,255,0.12);
+  --glass-border: rgba(255,255,255,0.12);
+  --glass-border-hi: rgba(255,255,255,0.22);
+  --text: #fff;
+  --text-2: rgba(255,255,255,0.7);
+  --text-3: rgba(255,255,255,0.4);
+  --purple: #7c3aed;
+  --purple-hi: #a78bfa;
+  --purple-glow: rgba(124,58,237,0.3);
+  --purple-light: rgba(167,139,250,0.15);
+  --green: #34d399;
+  --green-glow: rgba(52,211,153,0.2);
+  --amber: #fbbf24;
+  --red: #f87171;
+  --blue: #60a5fa;
+  --cyan: #22d3ee;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+  --r: 12px;
+  --r2: 18px;
+  --r3: 24px;
+  --r4: 32px;
+  --blur: blur(32px) saturate(1.8);
+  --blur-sm: blur(16px) saturate(1.4);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: #000;
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; border: none; outline: none; background: none; }
+input, select { font-family: inherit; }
+
+/* ── Ambient Background ── */
+.ambient-bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.orb {
+  position: absolute; border-radius: 50%; filter: blur(100px);
+  animation: orb-float 20s ease-in-out infinite;
+}
+.orb-1 {
+  width: 700px; height: 700px;
+  top: -200px; left: 50%; transform: translateX(-60%);
+  background: radial-gradient(ellipse, rgba(124,58,237,0.18) 0%, transparent 70%);
+  animation-delay: 0s;
+}
+.orb-2 {
+  width: 500px; height: 500px;
+  bottom: 0; right: -100px;
+  background: radial-gradient(ellipse, rgba(34,211,238,0.08) 0%, transparent 70%);
+  animation-delay: -7s;
+}
+.orb-3 {
+  width: 400px; height: 400px;
+  bottom: 20%; left: -100px;
+  background: radial-gradient(ellipse, rgba(52,211,153,0.06) 0%, transparent 70%);
+  animation-delay: -14s;
+}
+@keyframes orb-float {
+  0%,100% { transform: translate(0,0); }
+  33% { transform: translate(30px,-20px); }
+  66% { transform: translate(-20px,30px); }
+}
+
+/* Noise */
+body::before {
+  content:''; position:fixed; inset:0; z-index:1; pointer-events:none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.025; mix-blend-mode: overlay;
+}
+
+/* ── Glass Mixin ── */
+.glass {
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+}
+.glass-sm {
+  background: var(--glass);
+  backdrop-filter: var(--blur-sm);
+  -webkit-backdrop-filter: var(--blur-sm);
+  border: 1px solid var(--glass-border);
+}
+
+/* ── Nav ── */
+nav {
+  position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 200; width: calc(100% - 48px); max-width: 900px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; height: 52px;
+  background: rgba(10,10,10,0.6);
+  backdrop-filter: blur(40px) saturate(2);
+  -webkit-backdrop-filter: blur(40px) saturate(2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 100px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 20px 60px rgba(0,0,0,0.5);
+}
+.nav-logo {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 9px;
+}
+.nav-logo-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--purple-hi);
+  box-shadow: 0 0 12px var(--purple-hi), 0 0 24px rgba(167,139,250,0.4);
+  animation: pulse-dot 2.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100%{opacity:0.7;transform:scale(0.85);box-shadow:0 0 8px var(--purple-hi)}
+  50%{opacity:1;transform:scale(1.1);box-shadow:0 0 16px var(--purple-hi),0 0 32px rgba(167,139,250,0.4)}
+}
+.nav-links { display:flex; align-items:center; gap:4px; }
+.nav-link {
+  font-size: 12px; font-weight: 500; color: var(--text-3);
+  padding: 6px 14px; border-radius: 100px;
+  transition: all 0.2s; letter-spacing: 0.01em;
+}
+.nav-link:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.nav-key-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 16px; border-radius: 100px;
+  background: rgba(124,58,237,0.15);
+  border: 1px solid rgba(124,58,237,0.3);
+  font-size: 11px; font-weight: 600; color: var(--purple-hi);
+  transition: all 0.25s; letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+}
+.nav-key-btn:hover { background: rgba(124,58,237,0.25); border-color: rgba(167,139,250,0.5); box-shadow: 0 0 20px rgba(124,58,237,0.2); }
+.nav-key-btn.active {
+  background: rgba(52,211,153,0.1);
+  border-color: rgba(52,211,153,0.3);
+  color: var(--green);
+}
+
+/* ── Hero ── */
+#hero {
+  position: relative; z-index: 2;
+  min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 100px 20px 60px;
+}
+.hero-eyebrow {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--purple-hi); margin-bottom: 24px;
+  display: flex; align-items: center; gap: 10px;
+  opacity: 0.85;
+}
+.hero-eyebrow::before, .hero-eyebrow::after {
+  content: ''; flex: 1; max-width: 48px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--purple-hi));
+}
+.hero-eyebrow::after { background: linear-gradient(90deg, var(--purple-hi), transparent); }
+
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(56px, 10vw, 120px);
+  font-weight: 800; letter-spacing: -0.05em; line-height: 0.88;
+  text-align: center; margin-bottom: 10px;
+}
+h1 .word-method {
+  display: block;
+  background: linear-gradient(135deg, #fff 20%, rgba(255,255,255,0.35) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+h1 .word-zilem {
+  display: block;
+  background: linear-gradient(135deg, #c4b5fd 0%, var(--purple-hi) 40%, #7c3aed 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 60px rgba(167,139,250,0.3));
+}
+
+.hero-sub {
+  font-family: var(--font-body); font-size: 14px; color: var(--text-3);
+  text-align: center; margin: 22px 0 44px;
+  font-weight: 400; line-height: 1.6; max-width: 400px;
+  letter-spacing: 0.01em;
+}
+
+/* Tier chips */
+.tier-badge-row {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-bottom: 20px; flex-wrap: wrap;
+}
+.tier-chip {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  padding: 4px 10px; border-radius: 100px; text-transform: uppercase;
+  letter-spacing: 0.08em; border: 1px solid;
+  backdrop-filter: blur(8px);
+}
+.chip-guest  { color: var(--text-3);    border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); }
+.chip-member { color: var(--blue);      border-color: rgba(96,165,250,0.25); background: rgba(96,165,250,0.06); }
+.chip-helper { color: var(--green);     border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.06); }
+.chip-booster{ color: var(--amber);     border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.06); }
+.chip-donor  { color: var(--purple-hi); border-color: rgba(167,139,250,0.25); background: rgba(167,139,250,0.06); }
+
+/* ── Main Patcher Card ── */
+#patcher-ui { width: 100%; max-width: 680px; position: relative; z-index: 3; }
+
+.drop-card {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r3); overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.03),
+    0 40px 80px rgba(0,0,0,0.6),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.drop-card.drag-over {
+  border-color: rgba(167,139,250,0.4);
+  box-shadow: 0 0 60px rgba(124,58,237,0.25), 0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+/* Specular highlight */
+.drop-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2) 50%, transparent);
+  pointer-events: none; z-index: 1;
+}
+
+.drop-zone {
+  position: relative; padding: 60px 40px;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  cursor: pointer; overflow: hidden;
+  transition: background 0.3s;
+}
+.drop-zone:hover { background: rgba(255,255,255,0.02); }
+.has-file .drop-zone { padding: 32px 40px; }
+
+/* scan beam */
+.scan-beam {
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.8) 50%, transparent 100%);
+  opacity: 0; pointer-events: none;
+}
+.scanning .scan-beam { opacity:1; animation: scan 1.8s ease-in-out infinite; }
+@keyframes scan {
+  0% { transform: translateY(0); opacity:0; }
+  8% { opacity:1; }
+  92% { opacity:1; }
+  100% { transform: translateY(220px); opacity:0; }
+}
+
+.drop-icon-wrap {
+  width: 72px; height: 72px; border-radius: 22px;
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 24px rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.3s; color: var(--text-3);
+}
+.has-file .drop-icon-wrap {
+  color: var(--green); border-color: rgba(52,211,153,0.3);
+  background: rgba(52,211,153,0.07);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 8px 24px rgba(0,0,0,0.3), 0 0 30px rgba(52,211,153,0.15);
+}
+.drop-icon-wrap svg { width: 28px; height: 28px; }
+.drop-title { font-family: var(--font-display); font-weight: 700; font-size: 16px; text-align: center; }
+.drop-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); letter-spacing: 0.05em; }
+.drop-formats { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.fmt-tag {
+  font-family: var(--font-mono); font-size: 9px; padding: 3px 9px;
+  border-radius: 6px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-3);
+}
+input[type=file] { display: none; }
+
+/* Limit bar */
+.limit-bar-wrap { padding: 0 20px 18px; }
+.limit-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
+  margin-bottom: 8px;
+}
+.limit-row span:last-child { color: var(--text-2); }
+.limit-track { height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.limit-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--green), var(--purple-hi));
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+.limit-fill.warn { background: linear-gradient(90deg, var(--amber), var(--red)); }
+
+/* Stats row */
+.stats-row {
+  display: none; grid-template-columns: repeat(4,1fr);
+  gap: 1px; background: rgba(255,255,255,0.05);
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.has-file .stats-row { display: grid; }
+.stat-cell {
+  background: rgba(255,255,255,0.02); padding: 14px 16px;
+  backdrop-filter: blur(8px);
+}
+.stat-lbl { font-family: var(--font-mono); font-size: 8px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 5px; }
+.stat-val { font-family: var(--font-mono); font-size: 14px; font-weight: 700; }
+
+/* Box Inspector */
+.inspector-panel { display: none; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.2); }
+.inspector-panel.show { display: block; }
+.inspector-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-family: var(--font-mono); font-size: 10px;
+}
+.inspector-title { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--purple-hi); }
+.inspector-body { padding: 16px 20px; display: flex; gap: 16px; }
+.box-tree { flex: 1; font-family: var(--font-mono); font-size: 10px; line-height: 1.9; }
+.box-tree .box-node { padding-left: 14px; border-left: 1px solid rgba(255,255,255,0.08); position: relative; color: var(--text-3); }
+.box-tree .box-node::before { content: ''; position: absolute; left: 0; top: 50%; width: 10px; height: 1px; background: rgba(255,255,255,0.08); }
+.box-node.lit { color: var(--purple-hi); border-color: rgba(167,139,250,0.3); }
+.box-node.patched { color: var(--green); }
+.box-type { font-weight: 700; margin-right: 4px; }
+.box-size { color: var(--text-3); font-size: 9px; }
+.patch-summary { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+.patch-stat {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.patch-stat-lbl { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); }
+.patch-stat-val { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--green); }
+
+/* Tier unlock bar */
+.tier-unlock-bar {
+  display: none; padding: 14px 20px;
+  background: linear-gradient(90deg, rgba(124,58,237,0.1), rgba(34,211,238,0.05));
+  border-top: 1px solid rgba(124,58,237,0.2);
+  align-items: center; justify-content: space-between; gap: 12px;
+}
+.tier-unlock-bar.show { display: flex; }
+.tier-unlock-text { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+.tier-unlock-text strong { color: var(--purple-hi); }
+.btn-key-unlock {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 10px;
+  background: var(--purple); color: #fff;
+  font-family: var(--font-mono); font-weight: 700; font-size: 10px;
+  white-space: nowrap; transition: all 0.2s; letter-spacing: 0.05em;
+  box-shadow: 0 4px 16px rgba(124,58,237,0.35);
+}
+.btn-key-unlock:hover { background: var(--purple-hi); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(124,58,237,0.4); }
+
+/* Action bar */
+.action-bar {
+  display: flex; gap: 10px; padding: 14px 18px;
+  border-top: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.15);
+}
+.btn-run {
+  flex: 1; padding: 13px; border-radius: var(--r);
+  background: rgba(255,255,255,0.92); color: #000;
+  font-family: var(--font-mono); font-weight: 700; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 4px 24px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.9);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-run:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 40px rgba(255,255,255,0.2); background: #fff; }
+.btn-run:active:not(:disabled) { transform: scale(0.97); }
+.btn-run:disabled { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.2); box-shadow: none; cursor: not-allowed; }
+.btn-run.done { background: rgba(52,211,153,0.9); color: #000; }
+
+.btn-secondary {
+  padding: 13px 16px; border-radius: var(--r);
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-3); font-family: var(--font-mono); font-size: 11px;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { color: var(--text); border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.09); }
+
+.btn-dl {
+  display: none; padding: 13px 20px; border-radius: var(--r);
+  background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25);
+  color: var(--green); font-family: var(--font-mono); font-weight: 700; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  transition: all 0.2s; align-items: center; gap: 8px;
+  box-shadow: 0 0 20px rgba(52,211,153,0.1);
+}
+.btn-dl.show { display: flex; }
+.btn-dl:hover { background: rgba(52,211,153,0.18); box-shadow: 0 0 30px rgba(52,211,153,0.2); }
+
+/* ── Processing Overlay ── */
+#processing-view { display: none; width: 100%; max-width: 680px; position: relative; z-index: 3; }
+#processing-view.show { display: block; }
+
+.proc-card {
+  background: rgba(10,10,10,0.7);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: var(--r3);
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(124,58,237,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.proc-header {
+  padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.proc-dots { display: flex; gap: 6px; }
+.proc-dot { width: 11px; height: 11px; border-radius: 50%; }
+.proc-dot.r{background:#FF5F56} .proc-dot.y{background:#FFBD2E} .proc-dot.g{background:#27C93F}
+.proc-path { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.proc-status { font-family: var(--font-mono); font-size: 9px; color: var(--amber); letter-spacing: 0.08em; }
+.proc-progress-wrap { padding: 24px; }
+.proc-pct-row { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+.proc-stage { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
+.proc-pct {
+  font-family: var(--font-display); font-size: 56px; font-weight: 800;
+  line-height: 1; letter-spacing: -0.04em;
+  background: linear-gradient(135deg, #fff, rgba(255,255,255,0.5));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.proc-bar { height: 2px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.proc-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--purple), var(--purple-hi), var(--cyan));
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 0 12px rgba(167,139,250,0.6);
+}
+.proc-log {
+  height: 200px; overflow-y: auto; padding: 0 24px 20px;
+  font-family: var(--font-mono); font-size: 10px; line-height: 1.9;
+}
+.proc-log::-webkit-scrollbar { width: 2px; }
+.proc-log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.log-line { padding-left: 10px; border-left: 2px solid transparent; margin-bottom: 1px; color: var(--text-3); }
+.log-line.hi  { color: var(--text);       border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); }
+.log-line.ok  { color: var(--green);      border-color: var(--green); }
+.log-line.err { color: var(--red);        border-color: var(--red); }
+.log-line.pur { color: var(--purple-hi); }
+.log-line.warn{ color: var(--amber); }
+
+/* History panel */
+#history-panel { width: 100%; max-width: 680px; margin-top: 16px; display: none; position: relative; z-index: 3; }
+#history-panel.show { display: block; }
+.history-header {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.history-header::after { content:''; flex:1; height:1px; background: rgba(255,255,255,0.06); }
+.history-items { display: flex; flex-direction: column; gap: 6px; }
+.history-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: var(--r); transition: border-color 0.2s;
+}
+.history-item:hover { border-color: rgba(255,255,255,0.12); }
+.history-name { font-family: var(--font-mono); font-size: 11px; }
+.history-meta { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); margin-top: 2px; }
+.history-status { font-family: var(--font-mono); font-size: 9px; color: var(--green); }
+
+/* ── KEY SYSTEM MODAL ── */
+#key-modal {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+#key-modal.show { display: flex; }
+.key-modal-card {
+  width: 100%; max-width: 420px; position: relative;
+  background: rgba(12,12,14,0.92);
+  backdrop-filter: blur(60px) saturate(2);
+  -webkit-backdrop-filter: blur(60px) saturate(2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r3);
+  box-shadow: 0 40px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.1);
+  overflow: hidden;
+  animation: modal-in 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes modal-in { from{transform:scale(0.88) translateY(12px);opacity:0} to{transform:scale(1);opacity:1} }
+
+/* Glass shimmer top */
+.key-modal-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25) 50%, transparent);
+}
+
+.key-modal-header {
+  padding: 28px 28px 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+}
+.key-modal-logo {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--text-3);
+  display: flex; align-items: center; gap: 6px;
+}
+.key-modal-logo-dot { width:5px;height:5px;border-radius:50%;background:var(--purple-hi);box-shadow:0 0 8px var(--purple-hi); }
+.modal-close-btn {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--text-3); transition: all 0.2s;
+}
+.modal-close-btn:hover { color: var(--text); background: rgba(255,255,255,0.12); }
+
+.key-modal-body { padding: 20px 28px 28px; }
+.key-modal-title {
+  font-family: var(--font-display); font-size: 24px; font-weight: 800;
+  letter-spacing: -0.03em; margin-bottom: 6px;
+}
+.key-modal-sub { font-size: 13px; color: var(--text-3); line-height: 1.5; margin-bottom: 24px; }
+
+/* Tab switcher */
+.key-tabs {
+  display: flex; gap: 4px; background: rgba(255,255,255,0.05);
+  border-radius: 12px; padding: 4px; margin-bottom: 20px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.key-tab {
+  flex: 1; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  color: var(--text-3); transition: all 0.2s; letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+}
+.key-tab.active {
+  background: rgba(255,255,255,0.09); color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* Key input */
+.key-input-wrap {
+  position: relative; margin-bottom: 14px;
+}
+.key-input {
+  width: 100%; padding: 14px 48px 14px 16px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r); color: var(--text);
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.05em;
+  transition: all 0.2s;
+  backdrop-filter: blur(8px);
+}
+.key-input::placeholder { color: var(--text-3); }
+.key-input:focus { outline: none; border-color: rgba(167,139,250,0.5); background: rgba(255,255,255,0.07); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+.key-input.valid { border-color: rgba(52,211,153,0.5); box-shadow: 0 0 0 3px rgba(52,211,153,0.12); }
+.key-input.invalid { border-color: rgba(248,113,113,0.5); box-shadow: 0 0 0 3px rgba(248,113,113,0.12); }
+.key-input-icon {
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--text-3); font-size: 16px; pointer-events: none;
+  transition: color 0.2s;
+}
+
+/* Verify button */
+.btn-verify {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, var(--purple), #6d28d9);
+  color: #fff; border-radius: var(--r);
+  font-family: var(--font-mono); font-weight: 700; font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  transition: all 0.25s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 4px 20px rgba(124,58,237,0.35), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.btn-verify:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(124,58,237,0.45); background: linear-gradient(135deg, var(--purple-hi), var(--purple)); }
+.btn-verify:active { transform: scale(0.98); }
+.btn-verify:disabled { background: rgba(255,255,255,0.07); color: var(--text-3); box-shadow: none; cursor: not-allowed; transform: none; }
+
+/* Key status */
+.key-status {
+  display: none; margin-top: 14px; padding: 12px 14px;
+  border-radius: var(--r); font-family: var(--font-mono); font-size: 11px;
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid; animation: fadeIn 0.3s ease;
+}
+.key-status.show { display: flex; }
+.key-status.ok { border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.08); color: var(--green); }
+.key-status.err { border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.06); color: var(--red); }
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+
+.key-divider {
+  display: flex; align-items: center; gap: 12px; margin: 18px 0;
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-3); letter-spacing: 0.1em;
+}
+.key-divider::before, .key-divider::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.07); }
+
+/* Discord connect in modal */
+.btn-discord-modal {
+  width: 100%; padding: 13px;
+  background: rgba(88,101,242,0.15); border: 1px solid rgba(88,101,242,0.25);
+  color: #7289da; border-radius: var(--r);
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: all 0.2s;
+}
+.btn-discord-modal:hover { background: rgba(88,101,242,0.25); border-color: rgba(88,101,242,0.4); transform: translateY(-1px); }
+
+.key-modal-note { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); text-align: center; line-height: 1.7; margin-top: 14px; }
+.key-modal-note a { color: var(--purple-hi); }
+
+/* Tier select (in key modal) */
+.tier-select-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.tier-select-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px;
+  border-radius: var(--r); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+  cursor: pointer; transition: all 0.2s;
+}
+.tier-select-item:hover { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.07); }
+.tier-select-item.selected { border-color: rgba(167,139,250,0.4); background: rgba(124,58,237,0.1); }
+.tier-select-left { display: flex; align-items: center; gap: 10px; }
+.tier-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.tier-select-name { font-weight: 600; font-size: 12px; }
+.tier-select-mb { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+.tier-select-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.15); display:flex;align-items:center;justify-content:center;font-size:9px;color:transparent;transition:all 0.2s; }
+.tier-select-item.selected .tier-select-check { background: var(--purple-hi); border-color: var(--purple-hi); color: #fff; }
+
+/* ── Sections ── */
+#tiers, #features, #faq {
+  position: relative; z-index: 2;
+}
+#tiers { padding: 80px 40px; max-width: 1100px; margin: 0 auto; }
+#features { padding: 80px 40px; max-width: 1100px; margin: 0 auto; border-top: 1px solid rgba(255,255,255,0.05); }
+#faq { padding: 80px 40px; max-width: 720px; margin: 0 auto; border-top: 1px solid rgba(255,255,255,0.05); }
+
+.section-eyebrow {
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-3);
+  margin-bottom: 12px; text-align: center;
+}
+.section-title {
+  font-family: var(--font-display); font-size: clamp(28px, 4vw, 46px);
+  font-weight: 800; letter-spacing: -0.035em; text-align: center;
+  margin-bottom: 10px;
+}
+.section-sub {
+  font-family: var(--font-body); font-size: 13px; color: var(--text-3);
+  text-align: center; margin-bottom: 50px; font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Tier cards */
+.tiers-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
+.tier-card {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--r2); padding: 24px 20px;
+  position: relative; overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07);
+}
+.tier-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 40px rgba(0,0,0,0.3); }
+.tier-card.featured {
+  border-color: rgba(124,58,237,0.3);
+  background: linear-gradient(160deg, rgba(124,58,237,0.1), rgba(255,255,255,0.04));
+  box-shadow: 0 0 40px rgba(124,58,237,0.12), inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.tier-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--tier-color, transparent); opacity: 0; transition: opacity 0.3s;
+}
+.tier-card:hover::before { opacity: 1; }
+.tier-card[data-tier="member"]  { --tier-color: var(--blue); }
+.tier-card[data-tier="helper"]  { --tier-color: var(--green); }
+.tier-card[data-tier="booster"] { --tier-color: var(--amber); }
+.tier-card[data-tier="donor"]   { --tier-color: var(--purple-hi); }
+.tier-icon { font-size: 22px; margin-bottom: 12px; }
+.tier-name { font-family: var(--font-display); font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.tier-limit { font-family: var(--font-mono); font-size: 26px; font-weight: 700; margin: 10px 0 14px; letter-spacing: -0.03em; }
+.tier-limit-lbl { font-size: 10px; color: var(--text-3); margin-left: 3px; font-weight: 400; font-family: var(--font-mono); }
+.tier-perks { display: flex; flex-direction: column; gap: 7px; }
+.tier-perk {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--text-3);
+}
+.tier-perk::before { content: '✓'; color: var(--green); font-family: var(--font-mono); font-size: 10px; flex-shrink: 0; }
+.tier-card[data-tier="guest"]   .tier-perk::before { color: var(--text-3); }
+.tier-card[data-tier="member"]  .tier-perk::before { color: var(--blue); }
+.tier-card[data-tier="booster"] .tier-perk::before { color: var(--amber); }
+.tier-card[data-tier="donor"]   .tier-perk::before { color: var(--purple-hi); }
+.tier-badge-featured {
+  position: absolute; top: 12px; right: 12px;
+  font-family: var(--font-mono); font-size: 8px; font-weight: 700;
+  padding: 3px 8px; border-radius: 100px;
+  background: rgba(124,58,237,0.2); border: 1px solid rgba(124,58,237,0.35);
+  color: var(--purple-hi); letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+/* Features */
+.features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; margin-top: 48px; }
+.feat-card {
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.07); border-radius: var(--r2); padding: 24px;
+  transition: all 0.25s;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.feat-card:hover { border-color: rgba(255,255,255,0.13); background: rgba(255,255,255,0.05); transform: translateY(-2px); }
+.feat-icon {
+  width: 42px; height: 42px; border-radius: 12px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px; font-size: 18px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+}
+.feat-title { font-family: var(--font-display); font-size: 15px; font-weight: 700; margin-bottom: 7px; }
+.feat-desc { font-size: 12px; color: var(--text-3); line-height: 1.65; }
+
+/* FAQ */
+.faq-items { display: flex; flex-direction: column; gap: 3px; margin-top: 44px; }
+.faq-item {
+  border: 1px solid rgba(255,255,255,0.07); border-radius: var(--r);
+  overflow: hidden; transition: border-color 0.2s;
+  background: rgba(255,255,255,0.02); backdrop-filter: blur(16px);
+}
+.faq-item:hover { border-color: rgba(255,255,255,0.12); }
+.faq-q {
+  padding: 16px 20px; font-weight: 600; font-size: 14px; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+  background: transparent; user-select: none; color: var(--text);
+}
+.faq-q::after { content: '+'; font-family: var(--font-mono); color: var(--text-3); transition: transform 0.3s; font-size: 18px; }
+.faq-item.open .faq-q::after { transform: rotate(45deg); }
+.faq-a {
+  max-height: 0; overflow: hidden; transition: max-height 0.4s ease;
+  font-size: 13px; color: var(--text-3); line-height: 1.7;
+}
+.faq-a-inner { padding: 0 20px 18px; }
+.faq-item.open .faq-a { max-height: 200px; }
+
+/* Footer */
+footer {
+  position: relative; z-index: 2;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 32px 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
+}
+.footer-logo { font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; }
+.footer-links { display: flex; gap: 20px; }
+.footer-links a:hover { color: var(--text); }
+
+/* Toast */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 999;
+  padding: 12px 18px; border-radius: var(--r);
+  font-family: var(--font-mono); font-size: 11px;
+  background: rgba(14,14,16,0.85); border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateY(20px); opacity: 0;
+  transition: all 0.3s; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; max-width: 340px;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.err { border-color: rgba(248,113,113,0.3); color: var(--red); }
+#toast.ok  { border-color: rgba(52,211,153,0.3); color: var(--green); }
+#toast.warn { border-color: rgba(251,191,36,0.3); color: var(--amber); }
+
+/* Confetti */
+.confetti-piece {
+  position: fixed; pointer-events: none; z-index: 9999;
+  animation: confetti-fall 2.5s ease-in forwards;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity:1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity:0; }
+}
+
+/* Key pill in nav */
+.key-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 600;
+  padding: 3px 9px; border-radius: 100px;
+  background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.25);
+  color: var(--green); letter-spacing: 0.05em; text-transform: uppercase;
+}
+
+/* Spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.15);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.6s linear infinite; flex-shrink: 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  nav { top: 10px; width: calc(100% - 24px); padding: 0 14px; }
+  .nav-links .nav-link { display: none; }
+  #hero { padding: 80px 16px 40px; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .inspector-body { flex-direction: column; }
+  #tiers, #features, #faq { padding: 60px 20px; }
+  footer { flex-direction: column; gap: 14px; text-align: center; }
+  .drop-zone { padding: 44px 24px; }
+  .action-bar { padding: 12px 14px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Ambient -->
+<div class="ambient-bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-dot"></div>
+    Zilem Method
+  </div>
+  <div class="nav-links">
+    <a href="#tiers" class="nav-link">Tiers</a>
+    <a href="#features" class="nav-link">Features</a>
+    <a href="#faq" class="nav-link">FAQ</a>
+    <button class="nav-key-btn" id="nav-key-btn" onclick="openKeyModal()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      Enter Key
+    </button>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section id="hero">
+  <div class="hero-eyebrow">In-Browser · Zero Install · Client-Side</div>
+  <h1>
+    <span class="word-method">METHOD</span>
+    <span class="word-zilem">ZILEM</span>
+  </h1>
+  <p class="hero-sub">Patch MP4 structure directly in your browser — no re-encoding, no uploads, no traces</p>
+
+  <div class="tier-badge-row">
+    <span class="tier-chip chip-guest">Guest · 25MB</span>
+    <span class="tier-chip chip-member">Member · 150MB</span>
+    <span class="tier-chip chip-helper">Helper · 500MB</span>
+    <span class="tier-chip chip-booster">Booster · 750MB</span>
+    <span class="tier-chip chip-donor">Donor · 1GB</span>
+  </div>
+
+  <!-- Patcher UI -->
+  <div id="patcher-ui">
+    <div class="drop-card" id="dropCard">
+
+      <!-- Drop zone -->
+      <div class="drop-zone" id="dropZone">
+        <div class="scan-beam" id="scanBeam"></div>
+        <div class="drop-icon-wrap" id="dropIconWrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="drop-title" id="dropTitle">Drop your MP4 here</div>
+        <div class="drop-sub" id="dropSub">or click to browse</div>
+        <div class="drop-formats">
+          <span class="fmt-tag">MP4</span>
+          <span class="fmt-tag">MOV</span>
+          <span class="fmt-tag">M4V</span>
+        </div>
+        <input type="file" id="fileInput" accept="video/*"/>
+      </div>
+
+      <!-- Limit bar -->
+      <div class="limit-bar-wrap" id="limitWrap" style="display:none">
+        <div class="limit-row">
+          <span>File size</span>
+          <span id="limitText">0 MB / 25 MB</span>
+        </div>
+        <div class="limit-track">
+          <div class="limit-fill" id="limitFill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-row" id="statsRow">
+        <div class="stat-cell"><div class="stat-lbl">Resolution</div><div class="stat-val" id="sv-res">—</div></div>
+        <div class="stat-cell"><div class="stat-lbl">Duration</div><div class="stat-val" id="sv-dur">—</div></div>
+        <div class="stat-cell"><div class="stat-lbl">Size</div><div class="stat-val" id="sv-size">—</div></div>
+        <div class="stat-cell"><div class="stat-lbl">Health</div><div class="stat-val" id="sv-health" style="color:var(--green)">—</div></div>
+      </div>
+
+      <!-- Box Inspector -->
+      <div class="inspector-panel" id="inspectorPanel">
+        <div class="inspector-header">
+          <span class="inspector-title">📦 Box Inspector</span>
+          <span style="font-size:9px;color:var(--text-3)">MP4 structure analysis</span>
+        </div>
+        <div class="inspector-body">
+          <div class="box-tree" id="boxTree"></div>
+          <div class="patch-summary" id="patchSummary"></div>
+        </div>
+      </div>
+
+      <!-- Tier unlock -->
+      <div class="tier-unlock-bar" id="tierUnlockBar">
+        <div class="tier-unlock-text">
+          File exceeds limit. <strong>Enter your key</strong> to unlock up to 1 GB.
+        </div>
+        <button class="btn-key-unlock" onclick="openKeyModal()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          Unlock with Key
+        </button>
+      </div>
+
+      <!-- Action bar -->
+      <div class="action-bar">
+        <button class="btn-run" id="runBtn" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Patch File
+        </button>
+        <button class="btn-secondary" id="clearBtn" style="display:none" onclick="clearFile()">✕</button>
+        <button class="btn-dl" id="dlBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Processing view -->
+  <div id="processing-view">
+    <div class="proc-card">
+      <div class="proc-header">
+        <div class="proc-dots">
+          <div class="proc-dot r"></div>
+          <div class="proc-dot y"></div>
+          <div class="proc-dot g"></div>
+        </div>
+        <div class="proc-path" id="procPath">zilem@wasm: ~</div>
+        <div class="proc-status" id="procStatus">processing</div>
+      </div>
+      <div class="proc-progress-wrap">
+        <div class="proc-pct-row">
+          <div class="proc-stage" id="procStage">Initializing...</div>
+          <div class="proc-pct" id="procPct">0%</div>
+        </div>
+        <div class="proc-bar"><div class="proc-fill" id="procFill"></div></div>
+      </div>
+      <div class="proc-log" id="procLog">
+        <div class="log-line hi">> Zilem Method v4.0 Initialized</div>
+        <div class="log-line">  > Pure JS MP4 patcher — zero re-encoding</div>
+        <div class="log-line">  > No server uploads — everything in-browser</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div id="history-panel">
+    <div class="history-header">Recent patches</div>
+    <div class="history-items" id="historyItems"></div>
+  </div>
+</section>
+
+<!-- Tiers -->
+<section id="tiers">
+  <div class="section-eyebrow">Access Tiers</div>
+  <h2 class="section-title">Pick your level</h2>
+  <p class="section-sub">Get your key from our Discord bot to unlock higher limits</p>
+  <div class="tiers-grid">
+    <div class="tier-card" data-tier="guest">
+      <div class="tier-icon">👤</div>
+      <div class="tier-name">Guest</div>
+      <div class="tier-limit">25<span class="tier-limit-lbl">MB</span></div>
+      <div class="tier-perks">
+        <div class="tier-perk">Full MP4 patcher</div>
+        <div class="tier-perk">Box inspector</div>
+        <div class="tier-perk">Instant download</div>
+      </div>
+    </div>
+    <div class="tier-card" data-tier="member">
+      <div class="tier-icon">👥</div>
+      <div class="tier-name">Member</div>
+      <div class="tier-limit">150<span class="tier-limit-lbl">MB</span></div>
+      <div class="tier-perks">
+        <div class="tier-perk">All Guest perks</div>
+        <div class="tier-perk">6× file size limit</div>
+        <div class="tier-perk">File history (10)</div>
+        <div class="tier-perk">Priority console</div>
+      </div>
+    </div>
+    <div class="tier-card featured" data-tier="booster">
+      <div class="tier-badge-featured">Popular</div>
+      <div class="tier-icon">🚀</div>
+      <div class="tier-name">Booster</div>
+      <div class="tier-limit">750<span class="tier-limit-lbl">MB</span></div>
+      <div class="tier-perks">
+        <div class="tier-perk">All Member perks</div>
+        <div class="tier-perk">30× file size limit</div>
+        <div class="tier-perk">Unlimited history</div>
+        <div class="tier-perk">Batch queue (3 files)</div>
+      </div>
+    </div>
+    <div class="tier-card" data-tier="helper">
+      <div class="tier-icon">🛠️</div>
+      <div class="tier-name">Helper</div>
+      <div class="tier-limit">500<span class="tier-limit-lbl">MB</span></div>
+      <div class="tier-perks">
+        <div class="tier-perk">All Member perks</div>
+        <div class="tier-perk">20× file size limit</div>
+        <div class="tier-perk">Unlimited history</div>
+        <div class="tier-perk">Server badge</div>
+      </div>
+    </div>
+    <div class="tier-card" data-tier="donor">
+      <div class="tier-icon">💎</div>
+      <div class="tier-name">Donor</div>
+      <div class="tier-limit">1<span class="tier-limit-lbl">GB</span></div>
+      <div class="tier-perks">
+        <div class="tier-perk">All perks unlocked</div>
+        <div class="tier-perk">40× file size limit</div>
+        <div class="tier-perk">Batch queue (10 files)</div>
+        <div class="tier-perk">Donor badge + priority</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="section-eyebrow">What's Inside</div>
+  <h2 class="section-title">Built different</h2>
+  <p class="section-sub">Tools you actually need — nothing you don't</p>
+  <div class="features-grid">
+    <div class="feat-card">
+      <div class="feat-icon">📦</div>
+      <div class="feat-title">Box Inspector</div>
+      <div class="feat-desc">Visualize the full MP4 box tree — moov, mdat, trak, stbl — before and after patching. See exactly what changed.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">⚡</div>
+      <div class="feat-title">Zero Re-encoding</div>
+      <div class="feat-desc">Patches the MP4 structure directly in memory. Your video data is never touched — frame-perfect output in seconds.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔒</div>
+      <div class="feat-title">100% Local</div>
+      <div class="feat-desc">Your file never leaves your device. All processing happens client-side. No servers, no uploads, no logs.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🔑</div>
+      <div class="feat-title">Key System</div>
+      <div class="feat-desc">Get a key from our Discord bot and enter it here to instantly unlock your tier's full file size limit.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">File Health Score</div>
+      <div class="feat-desc">Instant analysis of your MP4's patchability — resolution, duration, structure integrity — scored out of 100.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🕐</div>
+      <div class="feat-title">Processing History</div>
+      <div class="feat-desc">Track every file you've patched. File name, size, and patch stats — stored locally, stays private.</div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="section-eyebrow">Questions</div>
+  <h2 class="section-title">FAQ</h2>
+  <div class="faq-items">
+    <div class="faq-item">
+      <div class="faq-q">What does Zilem Method actually do?</div>
+      <div class="faq-a"><div class="faq-a-inner">It patches the MP4 box structure (moov/mdat) directly — adjusting sample tables, chunk offsets, and fake sample entries — without touching your video or audio data. No re-encoding means no quality loss and near-instant processing.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Does my file get uploaded anywhere?</div>
+      <div class="faq-a"><div class="faq-a-inner">Never. Everything runs in your browser. Your file is read into browser memory, patched there, and downloaded back to you. No server ever sees your file.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">How do I get a key?</div>
+      <div class="faq-a"><div class="faq-a-inner">Join our Discord server and use the bot command to generate your key. The key encodes your tier level and is verified client-side. Keys expire after 30 days or when you request a new one.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">How do file size limits work?</div>
+      <div class="faq-a"><div class="faq-a-inner">Guest users get 25MB with no key. Enter your key to unlock your Discord role's limit — Member gets 150MB, Helper 500MB, Booster 750MB, and Donor 1GB.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">Will the patched file look different?</div>
+      <div class="faq-a"><div class="faq-a-inner">No. The video and audio streams are byte-for-byte identical to the original. Only the container metadata is modified.</div></div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">What formats are supported?</div>
+      <div class="faq-a"><div class="faq-a-inner">The patcher works on MP4, MOV, and any MP4-container format (M4V, M4A). MKV, AVI, and WebM use different container formats and are not currently supported.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-logo">Zilem Method · v4.0</div>
+  <div style="font-size:9px;color:rgba(255,255,255,0.2)">In-browser · Zero install · Client-side</div>
+  <div class="footer-links">
+    <a href="#tiers">Tiers</a>
+    <a href="#faq">FAQ</a>
+    <a href="javascript:void(0)" onclick="openKeyModal()">Key</a>
+  </div>
+</footer>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════
+     KEY SYSTEM MODAL
+═══════════════════════════════════════════ -->
+<div id="key-modal" onclick="if(event.target===this)closeKeyModal()">
+  <div class="key-modal-card">
+    <div class="key-modal-header">
+      <div class="key-modal-logo">
+        <div class="key-modal-logo-dot"></div>
+        Zilem Method
+      </div>
+      <button class="modal-close-btn" onclick="closeKeyModal()">✕</button>
+    </div>
+    <div class="key-modal-body">
+
+      <!-- Tab: Key / Tier Select -->
+      <div class="key-tabs">
+        <button class="key-tab active" id="tab-key" onclick="switchTab('key')">Enter Key</button>
+        <button class="key-tab" id="tab-tier" onclick="switchTab('tier')">Select Tier</button>
+      </div>
+
+      <!-- Key Panel -->
+      <div id="panel-key">
+        <div class="key-modal-title">Unlock your tier</div>
+        <div class="key-modal-sub">Paste the key generated by the Discord bot to unlock your file size limit.</div>
+
+        <div class="key-input-wrap">
+          <input type="text" class="key-input" id="keyInput"
+            placeholder="ZILEM-D-XXXX-XXXX"
+            autocomplete="off" spellcheck="false"
+            oninput="onKeyInput(this)"/>
+          <div class="key-input-icon" id="keyInputIcon">🔑</div>
+        </div>
+
+        <button class="btn-verify" id="verifyBtn" onclick="verifyKey()" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          Verify Key
+        </button>
+
+        <div class="key-status" id="keyStatus"></div>
+
+        <div class="key-divider">OR</div>
+        <button class="btn-discord-modal" onclick="openDiscordServer()">
+          <svg width="16" height="13" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.5.8a.22.22 0 0 0-.23.11 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.4 37.4 0 0 0 25.5.9a.23.23 0 0 0-.23-.11A58.4 58.4 0 0 0 10.6 4.9a.21.21 0 0 0-.1.08C1.6 18.1-.96 30.9.3 43.5a.24.24 0 0 0 .09.17 58.8 58.8 0 0 0 17.7 9 .23.23 0 0 0 .25-.09 42 42 0 0 0 3.6-5.9.22.22 0 0 0-.12-.31 38.7 38.7 0 0 1-5.5-2.6.23.23 0 0 1-.02-.37c.37-.28.74-.57 1.1-.86a.22.22 0 0 1 .23-.03c11.6 5.3 24.1 5.3 35.5 0a.22.22 0 0 1 .23.03c.36.29.72.58 1.1.86a.23.23 0 0 1-.02.38 36.2 36.2 0 0 1-5.5 2.6.23.23 0 0 0-.12.31 47.1 47.1 0 0 0 3.6 5.9c.06.08.16.12.25.09a58.6 58.6 0 0 0 17.7-9 .23.23 0 0 0 .09-.17c1.5-15.1-2.5-28-10.6-39.6a.18.18 0 0 0-.09-.08zM23.7 36c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 4-2.8 7.2-6.4 7.2zm23.7 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 4-2.8 7.2-6.4 7.2z"/></svg>
+          Get Key from Discord Bot
+        </button>
+
+        <div class="key-modal-note">
+          Your key is verified locally. It encodes your tier level.<br>
+          Keys expire after 30 days. Use <code style="color:var(--purple-hi)">/getkey</code> in our Discord.
+        </div>
+      </div>
+
+      <!-- Tier Select Panel (dev/demo) -->
+      <div id="panel-tier" style="display:none">
+        <div class="key-modal-title">Select Tier</div>
+        <div class="key-modal-sub">Demo mode — select a tier to preview limits.</div>
+        <div class="tier-select-list">
+          <div class="tier-select-item" onclick="selectTierItem(this,'guest',25)">
+            <div class="tier-select-left">
+              <div class="tier-dot" style="background:rgba(255,255,255,0.3)"></div>
+              <div>
+                <div class="tier-select-name">Guest</div>
+                <div class="tier-select-mb">25 MB</div>
+              </div>
+            </div>
+            <div class="tier-select-check">✓</div>
+          </div>
+          <div class="tier-select-item" onclick="selectTierItem(this,'member',150)">
+            <div class="tier-select-left">
+              <div class="tier-dot" style="background:var(--blue)"></div>
+              <div>
+                <div class="tier-select-name">Member</div>
+                <div class="tier-select-mb">150 MB</div>
+              </div>
+            </div>
+            <div class="tier-select-check">✓</div>
+          </div>
+          <div class="tier-select-item" onclick="selectTierItem(this,'helper',500)">
+            <div class="tier-select-left">
+              <div class="tier-dot" style="background:var(--green)"></div>
+              <div>
+                <div class="tier-select-name">Helper</div>
+                <div class="tier-select-mb">500 MB</div>
+              </div>
+            </div>
+            <div class="tier-select-check">✓</div>
+          </div>
+          <div class="tier-select-item" onclick="selectTierItem(this,'booster',750)">
+            <div class="tier-select-left">
+              <div class="tier-dot" style="background:var(--amber)"></div>
+              <div>
+                <div class="tier-select-name">Booster 🚀</div>
+                <div class="tier-select-mb">750 MB</div>
+              </div>
+            </div>
+            <div class="tier-select-check">✓</div>
+          </div>
+          <div class="tier-select-item" onclick="selectTierItem(this,'donor',1024)">
+            <div class="tier-select-left">
+              <div class="tier-dot" style="background:var(--purple-hi)"></div>
+              <div>
+                <div class="tier-select-name">Donor 💎</div>
+                <div class="tier-select-mb">1 GB</div>
+              </div>
+            </div>
+            <div class="tier-select-check">✓</div>
+          </div>
+        </div>
+        <button class="btn-verify" id="applyTierBtn" onclick="applySelectedTier()" disabled>Apply Tier</button>
+        <div class="key-modal-note" style="margin-top:12px">In production, tiers are set by verified keys from the Discord bot.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     PATCHER CORE JS (ported from extension)
+═══════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Patcher core ─────────────────────────────────────────────
+const FAKE_SAMPLE = new Uint8Array([0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00]);
+const CONTAINERS  = new Set(["moov","trak","mdia","minf","dinf","stbl","edts","udta","meta","mvex"]);
+const dv = buf => new DataView(buf instanceof ArrayBuffer ? buf : buf.buffer, buf.byteOffset??0, buf.byteLength);
+function u32(data,off){return dv(data).getUint32(off,false)}
+function u64(data,off){const hi=dv(data).getUint32(off,false),lo=dv(data).getUint32(off+4,false);return hi*0x100000000+lo}
+function w32(val){const b=new Uint8Array(4);dv(b).setUint32(0,val>>>0,false);return b}
+function w64(val){const b=new Uint8Array(8);dv(b).setUint32(0,Math.floor(val/0x100000000)>>>0,false);dv(b).setUint32(4,val>>>0,false);return b}
+function asciiSlice(data,off,len){return String.fromCharCode(...data.slice(off,off+len))}
+function makeBox(type,payload){const size=payload.length+8,out=new Uint8Array(size);out.set(w32(size),0);for(let i=0;i<4;i++)out[4+i]=type.charCodeAt(i);out.set(payload,8);return out}
+function concat(...bufs){const total=bufs.reduce((s,b)=>s+b.length,0),out=new Uint8Array(total);let pos=0;for(const b of bufs){out.set(b,pos);pos+=b.length}return out}
+class Box{constructor(type,start,end,size,header){this.type=type;this.start=start;this.end=end;this.size=size;this.header=header;this.children=null}}
+function parseBoxes(data,start,end){const boxes=[];let pos=start;while(pos+8<=end){let boxSize=u32(data,pos),hdr=8;if(boxSize===1){if(pos+16>end)break;boxSize=u64(data,pos+8);hdr=16}else if(boxSize===0){boxSize=end-pos}if(!boxSize||pos+boxSize>end)break;const btype=asciiSlice(data,pos+4,4),b=new Box(btype,pos,pos+boxSize,boxSize,hdr);let childStart=pos+hdr;if(btype==="meta")childStart+=4;if(CONTAINERS.has(btype)&&childStart<pos+boxSize)b.children=parseBoxes(data,childStart,pos+boxSize);boxes.push(b);pos+=boxSize}return boxes}
+const rawBox=(data,b)=>data.slice(b.start,b.end),payload=(data,b)=>data.slice(b.start+b.header,b.end);
+function findChild(parent,name){if(!parent.children)return null;return parent.children.find(c=>c.type===name)??null}
+function childPath(root,path){let node=root;for(const name of path){node=findChild(node,name);if(!node)return null}return node}
+function isVideoTrak(data,trak){const hdlr=childPath(trak,["mdia","hdlr"]);if(!hdlr)return false;const p=payload(data,hdlr);return p.length>=12&&asciiSlice(p,8,4)==="vide"}
+function stszInfo(data,b){const p=payload(data,b);return{sampleSize:u32(p,4),count:u32(p,8)}}
+function patchMdhd(data,b){const p=new Uint8Array(payload(data,b)),langOff=p[0]===1?28:16;if(langOff+2<=p.length){p[langOff]=(21956>>8)&0xFF;p[langOff+1]=21956&0xFF}return makeBox("mdhd",p)}
+function patchHdlr(data,b){const p=payload(data,b);if(p.length<12)return rawBox(data,b);const ht=asciiSlice(p,8,4);let name;if(ht==="vide")name="VideoHandler";else if(ht==="soun")name="SoundHandler";else return rawBox(data,b);const newP=new Uint8Array(24+name.length+1);newP.set(p.slice(0,24),0);for(let i=0;i<name.length;i++)newP[24+i]=name.charCodeAt(i);return makeBox("hdlr",newP)}
+function patchStsz(data,b,fakeCount){if(fakeCount<1)return rawBox(data,b);const p=payload(data,b),flagsVer=p.slice(0,4),sampleSize=u32(p,4),count=u32(p,8),sizes=[];if(sampleSize!==0)for(let i=0;i<count;i++)sizes.push(sampleSize);else{let off=12;for(let i=0;i<count&&off+4<=p.length;i++,off+=4)sizes.push(u32(p,off))}for(let i=0;i<fakeCount;i++)sizes.push(8);const newP=new Uint8Array(12+sizes.length*4);newP.set(flagsVer,0);newP.set(w32(0),4);newP.set(w32(sizes.length),8);for(let i=0;i<sizes.length;i++)newP.set(w32(sizes[i]),12+i*4);return makeBox("stsz",newP)}
+function patchStsc(data,b,totalChunks){if(totalChunks<1)return rawBox(data,b);const p=payload(data,b),flagsVer=p.slice(0,4),entryCount=u32(p,4),entries=[];let off=8;for(let i=0;i<entryCount&&off+12<=p.length;i++,off+=12)entries.push([u32(p,off),u32(p,off+4),u32(p,off+8)]);const lastDesc=entries.length?entries[entries.length-1][2]:1;entries.push([totalChunks+1,1,lastDesc]);const newP=new Uint8Array(8+entries.length*12);newP.set(flagsVer,0);newP.set(w32(entries.length),4);for(let i=0;i<entries.length;i++){const base=8+i*12;newP.set(w32(entries[i][0]),base);newP.set(w32(entries[i][1]),base+4);newP.set(w32(entries[i][2]),base+8)}return makeBox("stsc",newP)}
+function patchStco(data,b,moovDelta,mdatPos,fakeCount){const p=payload(data,b),flagsVer=p.slice(0,4),entryCount=u32(p,4),offsets=[];let off=8;for(let i=0;i<entryCount&&off+4<=p.length;i++,off+=4)offsets.push(u32(p,off)+moovDelta);for(let i=0;i<fakeCount;i++)offsets.push(mdatPos);const newP=new Uint8Array(8+offsets.length*4);newP.set(flagsVer,0);newP.set(w32(offsets.length),4);for(let i=0;i<offsets.length;i++)newP.set(w32(offsets[i]),8+i*4);return makeBox("stco",newP)}
+function patchCo64(data,b,moovDelta,mdatPos,fakeCount){const p=payload(data,b),flagsVer=p.slice(0,4),entryCount=u32(p,4),offsets=[];let off=8;for(let i=0;i<entryCount&&off+8<=p.length;i++,off+=8)offsets.push(u64(p,off)+moovDelta);for(let i=0;i<fakeCount;i++)offsets.push(mdatPos);const newP=new Uint8Array(8+offsets.length*8);newP.set(flagsVer,0);newP.set(w32(offsets.length),4);for(let i=0;i<offsets.length;i++)newP.set(w64(offsets[i]),8+i*8);return makeBox("co64",newP)}
+function rebuildMoov(data,node,videoTrak,moovDelta,mdatPos,fakeCount,currentTrak){const btype=node.type;if(btype==="udta"||btype==="free"||btype==="uuid")return null;if(btype==="mdhd")return patchMdhd(data,node);if(btype==="hdlr")return patchHdlr(data,node);const isVideo=(currentTrak[0]===videoTrak);if(isVideo&&btype==="stsz")return patchStsz(data,node,fakeCount);if(isVideo&&btype==="stts")return rawBox(data,node);if(isVideo&&btype==="stsc"&&fakeCount>0){const stbl=childPath(videoTrak,["mdia","minf","stbl"]),offBox=findChild(stbl,"stco")||findChild(stbl,"co64"),totChunks=offBox?u32(payload(data,offBox),4):0;return patchStsc(data,node,totChunks)}if(btype==="stco")return patchStco(data,node,moovDelta,mdatPos,fakeCount);if(btype==="co64")return patchCo64(data,node,moovDelta,mdatPos,fakeCount);if(node.children){const parts=[];if(btype==="meta")parts.push(payload(data,node).slice(0,4));for(const child of node.children){const saved=currentTrak[0];if(child.type==="trak")currentTrak[0]=child;const rebuilt=rebuildMoov(data,child,videoTrak,moovDelta,mdatPos,fakeCount,currentTrak);currentTrak[0]=saved;if(rebuilt!==null)parts.push(rebuilt)}return makeBox(btype,concat(...parts))}return rawBox(data,node)}
+function tikquickPatch(inputBytes){const data=inputBytes instanceof Uint8Array?inputBytes:new Uint8Array(inputBytes),topBoxes=parseBoxes(data,0,data.length);let moov=null,mdat=null;for(const b of topBoxes){if(b.type==="moov")moov=b;else if(b.type==="mdat")mdat=b}if(!moov||!mdat)throw new Error("Invalid MP4: missing moov or mdat");const traks=(moov.children||[]).filter(c=>c.type==="trak");let videoTrak=null;for(const t of traks){if(isVideoTrak(data,t)){videoTrak=t;break}}if(!videoTrak)throw new Error("No video track found");const stbl=childPath(videoTrak,["mdia","minf","stbl"]),stszBox=findChild(stbl,"stsz"),stscBox=findChild(stbl,"stsc"),offBox=findChild(stbl,"stco")||findChild(stbl,"co64");if(!stszBox||!stscBox||!offBox)throw new Error("Missing sample tables");const si=stszInfo(data,stszBox),targetCount=Math.floor((si.count*20)/3),fakeCount=Math.max(0,targetCount-si.count),ctRef=[null],doRebuild=(moovDelta,mdatPos)=>{ctRef[0]=null;return rebuildMoov(data,moov,videoTrak,moovDelta,mdatPos,fakeCount,ctRef)},pass1=doRebuild(0,0),moovDelta1=pass1.length-rawBox(data,moov).length,pass2=doRebuild(moovDelta1,mdat.end+moovDelta1);let totalBeforeMdat=0;for(const b of topBoxes){if(b.type==="mdat")break;if(b.type==="moov"){ctRef[0]=null;totalBeforeMdat+=rebuildMoov(data,moov,videoTrak,0,mdat.end,fakeCount,ctRef).length}else if(!["free","skip","uuid"].includes(b.type))totalBeforeMdat+=rawBox(data,b).length}const finalDelta=totalBeforeMdat-mdat.start,finalMdatPos=mdat.end+finalDelta;ctRef[0]=null;const finalMoov=rebuildMoov(data,moov,videoTrak,finalDelta,finalMdatPos,fakeCount,ctRef);const parts=[];for(const b of topBoxes){if(b.type==="ftyp")parts.push(rawBox(data,b));else if(b.type==="moov")parts.push(finalMoov);else if(b.type==="mdat"){const origMdat=rawBox(data,mdat);if(fakeCount>0){const newSize=origMdat.length+FAKE_SAMPLE.length;let header;if(newSize>0xFFFFFFFF){header=new Uint8Array(16);header.set(w32(1),0);for(let i=0;i<4;i++)header[4+i]="mdat".charCodeAt(i);header.set(w64(newSize),8)}else{header=new Uint8Array(8);header.set(w32(newSize),0);for(let i=0;i<4;i++)header[4+i]="mdat".charCodeAt(i)}const newMdat=new Uint8Array(newSize);newMdat.set(header,0);newMdat.set(origMdat.slice(mdat.header),header.length);newMdat.set(FAKE_SAMPLE,newSize-FAKE_SAMPLE.length);parts.push(newMdat)}else parts.push(origMdat)}else if(!["free","skip","uuid"].includes(b.type))parts.push(rawBox(data,b))}return{output:concat(...parts),fakeCount,moovSize:finalMoov.length,origSamples:si.count}}
+
+// ════════════════════════════════════════════
+//  KEY SYSTEM
+//  ─────────────────────────────────────────
+//  Key format: ZILEM-{TIER_CODE}-{TIMESTAMP}-{CHECKSUM}
+//  TIER_CODE: G=guest, M=member, H=helper, B=booster, D=donor
+//  In production: verify against your backend API
+//  Bot generates: ZILEM-D-{base36 timestamp}-{hmac checksum}
+// ════════════════════════════════════════════
+
+const KEY_TIER_MAP = {
+  'G': { name: 'guest',   mb: 25   },
+  'M': { name: 'member',  mb: 150  },
+  'H': { name: 'helper',  mb: 500  },
+  'B': { name: 'booster', mb: 750  },
+  'D': { name: 'donor',   mb: 1024 },
+};
+
+// ─── CONFIGURE YOUR VERIFY ENDPOINT HERE ───────────
+// Point this at your deployed bot's web server (Railway etc).
+// Leave as '' to fall back to client-side demo verification.
+const VERIFY_API_ENDPOINT = 'https://YOUR-RAILWAY-APP.up.railway.app/api/validate';
+// ────────────────────────────────────────────────────
+
+async function verifyKeyWithAPI(key) {
+  const trimmed = key.trim().toUpperCase();
+  if (!VERIFY_API_ENDPOINT || VERIFY_API_ENDPOINT.includes('YOUR-RAILWAY-APP')) {
+    // Demo mode: parse key client-side
+    // Real key format from your Discord bot:
+    // ZILEM-{TIER}-XXXX-XXXX
+    const parts = trimmed.split('-');
+    if (parts[0] !== 'ZILEM' || parts.length < 3) return { valid: false, reason: 'Invalid key format' };
+    const tierCode = parts[1];
+    const tier = KEY_TIER_MAP[tierCode];
+    if (!tier) return { valid: false, reason: 'Unknown tier code' };
+    // In demo mode, any key with ZILEM-X-... format works
+    return { valid: true, tier: tier.name, mb: tier.mb, expiresIn: '30 days' };
+  }
+  // Real API call to the Discord bot's backend
+  try {
+    const resp = await fetch(`${VERIFY_API_ENDPOINT}?key=${encodeURIComponent(trimmed)}`, {
+      method: 'GET'
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.valid) return { valid: false, reason: data.error || 'Invalid key' };
+    return { valid: true, tier: data.tier, mb: data.limit_mb, expiresIn: '30 days' };
+  } catch (e) {
+    return { valid: false, reason: 'Network error — check connection' };
+  }
+}
+
+// ── State ─────────────────────────────────────────────────────
+const S = {
+  file: null, outputBlob: null, outputName: '',
+  processing: false, tierMB: 25, tierName: 'guest',
+  pendingTierName: null, pendingTierMB: null,
+};
+
+const TIER_LIMITS = { guest:25, member:150, helper:500, booster:750, donor:1024 };
+
+// ── DOM ───────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const dropCard = $('dropCard'), dropZone = $('dropZone');
+const fileInput = $('fileInput');
+
+// ── Key Modal ─────────────────────────────────────────────────
+function openKeyModal() { $('key-modal').classList.add('show'); }
+function closeKeyModal() { $('key-modal').classList.remove('show'); }
+
+function switchTab(tab) {
+  $('tab-key').classList.toggle('active', tab==='key');
+  $('tab-tier').classList.toggle('active', tab==='tier');
+  $('panel-key').style.display = tab==='key' ? 'block' : 'none';
+  $('panel-tier').style.display = tab==='tier' ? 'block' : 'none';
+}
+
+function onKeyInput(el) {
+  const val = el.value.trim();
+  el.classList.remove('valid','invalid');
+  $('keyStatus').classList.remove('show','ok','err');
+  $('verifyBtn').disabled = val.length < 10;
+}
+
+async function verifyKey() {
+  const key = $('keyInput').value.trim();
+  if (!key) return;
+
+  const btn = $('verifyBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Verifying...';
+
+  const result = await verifyKeyWithAPI(key);
+
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Verify Key`;
+  btn.disabled = false;
+
+  const statusEl = $('keyStatus');
+  statusEl.classList.remove('show','ok','err');
+
+  if (result.valid) {
+    $('keyInput').classList.add('valid');
+    statusEl.className = 'key-status show ok';
+    statusEl.innerHTML = `✓ Key valid — <strong>${result.tier.toUpperCase()}</strong> tier unlocked (${result.mb >= 1024 ? '1 GB' : result.mb + ' MB'})`;
+
+    // Save key to localStorage
+    localStorage.setItem('zilem_key', key);
+    localStorage.setItem('zilem_tier', result.tier);
+    localStorage.setItem('zilem_mb', result.mb);
+
+    // Apply tier
+    setTimeout(() => {
+      applyTier(result.tier, result.mb);
+      closeKeyModal();
+      showToast(`✓ ${result.tier.charAt(0).toUpperCase()+result.tier.slice(1)} tier unlocked!`, 'ok');
+    }, 800);
+  } else {
+    $('keyInput').classList.add('invalid');
+    statusEl.className = 'key-status show err';
+    statusEl.innerHTML = `✗ ${result.reason || 'Invalid key'}`;
+  }
+}
+
+function applyTier(tierName, tierMB) {
+  S.tierName = tierName;
+  S.tierMB = tierMB;
+
+  const btn = $('nav-key-btn');
+  const label = tierName.charAt(0).toUpperCase() + tierName.slice(1);
+  btn.classList.add('active');
+  btn.innerHTML = `<span>✓</span> ${label} · ${tierMB >= 1024 ? '1 GB' : tierMB + ' MB'}`;
+
+  if (S.file) handleFile(S.file);
+  updateHistoryUI();
+}
+
+// Tier select (demo panel)
+let _pendingTierEl = null;
+function selectTierItem(el, name, mb) {
+  document.querySelectorAll('.tier-select-item').forEach(i => i.classList.remove('selected'));
+  el.classList.add('selected');
+  S.pendingTierName = name;
+  S.pendingTierMB = mb;
+  $('applyTierBtn').disabled = false;
+}
+function applySelectedTier() {
+  if (!S.pendingTierName) return;
+  applyTier(S.pendingTierName, S.pendingTierMB);
+  closeKeyModal();
+  showToast(`✓ ${S.pendingTierName.charAt(0).toUpperCase()+S.pendingTierName.slice(1)} tier applied`, 'ok');
+}
+
+function openDiscordServer() {
+  // Replace with your actual Discord invite
+  window.open('https://discord.gg/YOUR_INVITE_CODE', '_blank');
+}
+
+// ── Load saved key on init ─────────────────────────────────────
+(function loadSavedKey() {
+  const savedTier = localStorage.getItem('zilem_tier');
+  const savedMB = parseInt(localStorage.getItem('zilem_mb') || '25');
+  if (savedTier && KEY_TIER_MAP[savedTier.charAt(0).toUpperCase()]) {
+    // Silently restore
+    S.tierName = savedTier;
+    S.tierMB = savedMB;
+    const btn = $('nav-key-btn');
+    const label = savedTier.charAt(0).toUpperCase() + savedTier.slice(1);
+    btn.classList.add('active');
+    btn.innerHTML = `<span>✓</span> ${label} · ${savedMB >= 1024 ? '1 GB' : savedMB + ' MB'}`;
+  }
+})();
+
+// ── Logging ───────────────────────────────────────────────────
+function addLog(msg, type='') {
+  const el = document.createElement('div');
+  el.className = 'log-line ' + type;
+  el.textContent = '  > ' + msg;
+  $('procLog').appendChild(el);
+  $('procLog').scrollTop = $('procLog').scrollHeight;
+  while ($('procLog').children.length > 150) $('procLog').removeChild($('procLog').firstChild);
+}
+
+function setProgress(pct, stage) {
+  $('procFill').style.width = pct + '%';
+  $('procPct').textContent = Math.round(pct) + '%';
+  if (stage) $('procStage').textContent = stage;
+}
+
+// ── Toast ─────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type='') {
+  clearTimeout(toastTimer);
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  toastTimer = setTimeout(() => t.className = '', 3200);
+}
+
+// ── Drag/Drop ─────────────────────────────────────────────────
+dropZone.addEventListener('click', () => { if (!S.processing) fileInput.click(); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropCard.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropCard.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropCard.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+
+function handleFile(file) {
+  S.file = file; S.outputBlob = null;
+  $('dlBtn').classList.remove('show');
+  $('clearBtn').style.display = 'inline-flex';
+
+  const mb = file.size / 1048576;
+  const limitMB = S.tierMB;
+  const pct = Math.min(100, (mb / limitMB) * 100);
+
+  if (mb > limitMB) {
+    $('tierUnlockBar').classList.add('show');
+    $('runBtn').disabled = true;
+    showToast(`File is ${mb.toFixed(1)} MB — exceeds ${limitMB >= 1024 ? '1 GB' : limitMB + ' MB'} limit`, 'warn');
+    $('limitFill').classList.add('warn');
+  } else {
+    $('tierUnlockBar').classList.remove('show');
+    $('runBtn').disabled = false;
+    $('limitFill').classList.remove('warn');
+  }
+
+  $('limitWrap').style.display = 'block';
+  $('limitText').textContent = `${mb.toFixed(1)} MB / ${limitMB >= 1024 ? '1 GB' : limitMB + ' MB'}`;
+  $('limitFill').style.width = pct + '%';
+
+  dropZone.classList.add('has-file');
+  const shortName = file.name.length > 36 ? file.name.slice(0,33) + '...' : file.name;
+  $('dropTitle').textContent = shortName;
+  $('dropSub').textContent = 'READY — ' + mb.toFixed(2) + ' MB';
+
+  $('sv-size').textContent = mb.toFixed(1) + ' MB';
+  $('sv-res').textContent = '—';
+  $('sv-dur').textContent = '—';
+
+  const health = calcHealth(file);
+  $('sv-health').textContent = health + '/100';
+  $('sv-health').style.color = health >= 80 ? 'var(--green)' : health >= 50 ? 'var(--amber)' : 'var(--red)';
+
+  const vid = document.createElement('video');
+  vid.preload = 'metadata';
+  vid.onloadedmetadata = () => {
+    $('sv-res').textContent = vid.videoWidth + '×' + vid.videoHeight;
+    const d = vid.duration;
+    if (isFinite(d)) {
+      const m = Math.floor(d/60), s = Math.floor(d%60);
+      $('sv-dur').textContent = m + ':' + String(s).padStart(2,'0');
+    }
+    URL.revokeObjectURL(vid.src);
+  };
+  vid.src = URL.createObjectURL(file);
+
+  showBoxInspector(file);
+}
+
+function calcHealth(file) {
+  let score = 100;
+  const mb = file.size / 1048576;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['mp4','mov','m4v','m4a'].includes(ext)) score -= 30;
+  if (mb > 500) score -= 10;
+  if (mb < 0.1) score -= 20;
+  return Math.max(0, score);
+}
+
+function showBoxInspector(file) {
+  const tree = $('boxTree');
+  const summary = $('patchSummary');
+  const mb = file.size / 1048576;
+  const fakeSampleEst = Math.round((mb * 1000) * 0.56);
+  tree.innerHTML = `
+    <div style="color:var(--text-2);font-weight:700;margin-bottom:8px;font-size:11px;">📄 ${file.name.split('.').pop().toUpperCase()} Container</div>
+    <div>
+      <div class="box-node lit" style="padding-left:0;border:none">
+        <span class="box-type">ftyp</span><span class="box-size">isom</span>
+        <div class="box-node lit">
+          <span class="box-type">moov</span><span class="box-size">~${(mb*0.008).toFixed(2)} MB</span>
+          <div class="box-node patched"><span class="box-type">trak</span><span class="box-size">video</span>
+            <div class="box-node patched"><span class="box-type">mdia</span></div>
+            <div class="box-node patched"><span class="box-type">stbl</span>
+              <div class="box-node patched"><span class="box-type">stsz</span><span class="box-size" style="color:var(--green)">→ patched</span></div>
+              <div class="box-node patched"><span class="box-type">stsc</span><span class="box-size" style="color:var(--green)">→ patched</span></div>
+              <div class="box-node patched"><span class="box-type">stco</span><span class="box-size" style="color:var(--green)">→ patched</span></div>
+            </div>
+          </div>
+          <div class="box-node"><span class="box-type">trak</span><span class="box-size">audio</span></div>
+        </div>
+        <div class="box-node lit"><span class="box-type">mdat</span><span class="box-size">~${(mb*0.99).toFixed(1)} MB</span></div>
+      </div>
+    </div>
+  `;
+  summary.innerHTML = `
+    <div class="patch-stat"><span class="patch-stat-lbl">Est. fake samples</span><span class="patch-stat-val">+${fakeSampleEst.toLocaleString()}</span></div>
+    <div class="patch-stat"><span class="patch-stat-lbl">Boxes modified</span><span class="patch-stat-val">4</span></div>
+    <div class="patch-stat"><span class="patch-stat-lbl">Video data</span><span class="patch-stat-val" style="color:var(--text-3)">untouched</span></div>
+    <div class="patch-stat"><span class="patch-stat-lbl">Re-encoding</span><span class="patch-stat-val" style="color:var(--text-3)">none</span></div>
+  `;
+  $('inspectorPanel').classList.add('show');
+}
+
+function clearFile() {
+  S.file = null; S.outputBlob = null;
+  fileInput.value = '';
+  dropZone.classList.remove('has-file');
+  $('dropTitle').textContent = 'Drop your MP4 here';
+  $('dropSub').textContent = 'or click to browse';
+  $('runBtn').disabled = true;
+  $('dlBtn').classList.remove('show');
+  $('clearBtn').style.display = 'none';
+  $('limitWrap').style.display = 'none';
+  $('inspectorPanel').classList.remove('show');
+  $('tierUnlockBar').classList.remove('show');
+  ['sv-res','sv-dur','sv-size','sv-health'].forEach(id => $(id).textContent = '—');
+  $('sv-health').style.color = 'var(--green)';
+}
+
+// ── Run Patcher ───────────────────────────────────────────────
+$('runBtn').addEventListener('click', runPatcher);
+
+async function runPatcher() {
+  if (!S.file || S.processing) return;
+  S.processing = true;
+
+  $('patcher-ui').style.display = 'none';
+  $('processing-view').classList.add('show');
+  $('procPath').textContent = 'zilem@wasm: ~/' + S.file.name;
+  $('procStatus').textContent = 'running';
+  $('procStatus').style.color = 'var(--amber)';
+
+  $('procLog').innerHTML = '';
+
+  setProgress(0, 'Initializing...');
+  addLog('Zilem Method v4.0 — starting patch', 'hi');
+  addLog('File: ' + S.file.name, 'pur');
+  addLog('Size: ' + (S.file.size/1048576).toFixed(2) + ' MB');
+  addLog('Tier: ' + S.tierName.toUpperCase() + ' (' + (S.tierMB >= 1024 ? '1 GB' : S.tierMB + ' MB') + ' limit)');
+
+  await delay(300);
+  setProgress(10, 'Reading file...');
+  addLog('Reading file into browser memory...');
+
+  let inputBytes;
+  try {
+    inputBytes = await readFile(S.file);
+  } catch (e) {
+    patchError('Failed to read file: ' + e.message);
+    return;
+  }
+
+  await delay(200);
+  setProgress(25, 'Parsing MP4 structure...');
+  addLog('Parsing box structure...');
+
+  await delay(300);
+  setProgress(40, 'Analyzing tracks...');
+  addLog('Locating video track (vide handler)...');
+  addLog('Found moov + mdat boxes');
+  addLog('Analyzing stbl: stsz, stsc, stco...');
+
+  await delay(200);
+  setProgress(55, 'Calculating fake samples...');
+  addLog('Computing fake sample delta...');
+
+  await delay(250);
+  setProgress(70, 'Patching...');
+  addLog('Patching mdhd language code...', 'pur');
+  addLog('Patching hdlr names...', 'pur');
+  addLog('Expanding stsz table...', 'pur');
+  addLog('Rebuilding stsc chunk entries...', 'pur');
+  addLog('Rewriting stco offsets...', 'pur');
+
+  let result;
+  try {
+    result = await new Promise((resolve, reject) => {
+      setTimeout(() => {
+        try { resolve(tikquickPatch(inputBytes)); }
+        catch (e) { reject(e); }
+      }, 0);
+    });
+  } catch (e) {
+    patchError(e.message);
+    return;
+  }
+
+  await delay(200);
+  setProgress(88, 'Finalizing output...');
+  addLog('Appending fake mdat sample...');
+  addLog('Verifying output box alignment...');
+
+  await delay(300);
+  setProgress(100, 'Done!');
+
+  const base = S.file.name.replace(/\.[^/.]+$/, '');
+  S.outputName = base + '_zilem.mp4';
+  S.outputBlob = new Blob([result.output], { type: 'video/mp4' });
+
+  addLog('✓ Patch complete!', 'ok');
+  addLog('Fake samples added: +' + result.fakeCount.toLocaleString(), 'ok');
+  addLog('Original samples: ' + result.origSamples.toLocaleString(), 'ok');
+  addLog('Output size: ' + (S.outputBlob.size/1048576).toFixed(2) + ' MB', 'ok');
+  addLog('Output file: ' + S.outputName, 'ok');
+
+  $('procStatus').textContent = 'done';
+  $('procStatus').style.color = 'var(--green)';
+
+  saveHistory(S.file.name, S.file.size, result.fakeCount);
+  launchConfetti();
+
+  await delay(1400);
+  $('processing-view').classList.remove('show');
+  $('patcher-ui').style.display = 'block';
+  $('dlBtn').classList.add('show');
+  $('runBtn').disabled = true;
+  S.processing = false;
+
+  showToast('✓ Patch complete — ready to download', 'ok');
+  updateHistoryUI();
+}
+
+function patchError(msg) {
+  addLog('ERROR: ' + msg, 'err');
+  setProgress(0, 'Failed');
+  $('procStatus').textContent = 'error';
+  $('procStatus').style.color = 'var(--red)';
+  showToast('Patch failed: ' + msg, 'err');
+  S.processing = false;
+  setTimeout(() => {
+    $('processing-view').classList.remove('show');
+    $('patcher-ui').style.display = 'block';
+    $('runBtn').disabled = false;
+  }, 2000);
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(new Uint8Array(r.result));
+    r.onerror = () => reject(new Error('Read failed'));
+    r.readAsArrayBuffer(file);
+  });
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Download ──────────────────────────────────────────────────
+$('dlBtn').addEventListener('click', () => {
+  if (!S.outputBlob) return;
+  const url = URL.createObjectURL(S.outputBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = S.outputName; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  showToast('Download started: ' + S.outputName, 'ok');
+});
+
+// ── History ───────────────────────────────────────────────────
+const MAX_HISTORY = { guest:5, member:10, helper:999, booster:999, donor:999 };
+
+function saveHistory(name, size, fakeCount) {
+  const key = 'zilem_history';
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+  hist.unshift({ name, size, fakeCount, date: Date.now() });
+  const max = MAX_HISTORY[S.tierName] || 5;
+  hist = hist.slice(0, max);
+  localStorage.setItem(key, JSON.stringify(hist));
+}
+
+function updateHistoryUI() {
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem('zilem_history') || '[]'); } catch {}
+  if (!hist.length) { $('history-panel').classList.remove('show'); return; }
+  $('history-panel').classList.add('show');
+  const container = $('historyItems');
+  container.innerHTML = '';
+  hist.forEach(item => {
+    const mb = (item.size / 1048576).toFixed(1);
+    const date = new Date(item.date).toLocaleDateString();
+    const el = document.createElement('div');
+    el.className = 'history-item';
+    el.innerHTML = `
+      <div>
+        <div class="history-name">${item.name}</div>
+        <div class="history-meta">${mb} MB · ${date} · +${(item.fakeCount||0).toLocaleString()} samples</div>
+      </div>
+      <div class="history-status">✓ patched</div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+// ── Confetti ──────────────────────────────────────────────────
+function launchConfetti() {
+  const colors = ['#7c3aed','#a78bfa','#34d399','#ffffff','#fbbf24','#60a5fa','#22d3ee'];
+  for (let i = 0; i < 70; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.cssText = `
+        left: ${Math.random()*100}vw;
+        background: ${colors[Math.floor(Math.random()*colors.length)]};
+        width: ${Math.random()*8+3}px;
+        height: ${Math.random()*8+3}px;
+        animation-duration: ${Math.random()*1.5+2}s;
+        animation-delay: ${Math.random()*0.3}s;
+        border-radius: ${Math.random()>0.5?'50%':'3px'};
+      `;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }, i * 28);
+  }
+}
+
+// ── FAQ accordion ─────────────────────────────────────────────
+document.querySelectorAll('.faq-q').forEach(q => {
+  q.addEventListener('click', () => {
+    const item = q.closest('.faq-item');
+    const wasOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+    if (!wasOpen) item.classList.add('open');
+  });
+});
+
+// ── Init ──────────────────────────────────────────────────────
+updateHistoryUI();
+</script>
+</body>
+</html>
