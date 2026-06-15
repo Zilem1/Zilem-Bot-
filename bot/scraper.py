@@ -69,20 +69,23 @@ def _scrape_sync(url: str) -> dict:
     # Video dimensions
     width  = int(d.get("width")  or 1080)
     height = int(d.get("height") or 1920)
-    long_side = max(width, height)
+    short_side = min(width, height)  # use short side for resolution (portrait videos)
 
-    if long_side >= 2160:   resolution = "4K"
-    elif long_side >= 1440: resolution = "2K"
-    elif long_side >= 1080: resolution = "1080P"
-    elif long_side >= 720:  resolution = "720P"
-    else:                   resolution = "480P"
+    if short_side >= 2160:   resolution = "4K"
+    elif short_side >= 1440: resolution = "2K"
+    elif short_side >= 1080: resolution = "1080P"
+    elif short_side >= 720:  resolution = "720P"
+    else:                    resolution = "480P"
 
-    quality_lbl   = "4K" if long_side >= 1080 else ("HD" if long_side >= 720 else "SD")
+    quality_lbl   = "4K" if short_side >= 1080 else ("HD" if short_side >= 720 else "SD")
     web_quality   = f"{quality_lbl} • {width}x{height}"
     phone_quality = quality_lbl
 
     duration = int(d.get("duration") or 0)
-    fps      = 60 if duration and duration < 60 else 30
+    # Use actual FPS from API if available
+    fps      = int(d.get("fps") or 0)
+    if not fps:
+        fps = 60 if d.get("bit_rate", 0) and int(d.get("bit_rate", 0)) > 3_000_000 else 30
     engine   = "HFR" if fps >= 60 else "Standard"
 
     # File size
