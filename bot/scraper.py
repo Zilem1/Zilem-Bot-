@@ -1,13 +1,11 @@
 """
 scraper.py — TikTok scraper using tikwm.com
-Resolution/FPS logic is based on actual pixel width (short side for portrait videos)
 """
 import urllib.request
 import urllib.parse
 import json
 import re
 from datetime import datetime
-
 
 API_URL = "https://www.tikwm.com/api/"
 
@@ -47,23 +45,35 @@ def fmt_duration(seconds):
 
 def get_resolution(width, height):
     """
-    TikTok videos are portrait (e.g. 1080x1920).
-    Resolution is determined by the WIDTH (short side).
-    1080 wide = 1080P, NOT 2K or 4K.
+    Use the smaller dimension as the resolution class.
+    Portrait  1080x1920 → smaller = 1080 → 1080P ✅
+    Landscape 1920x1080 → smaller = 1080 → 1080P ✅
+    Portrait   720x1280 → smaller =  720 →  720P ✅
+    Portrait  1440x2560 → smaller = 1440 →   2K ✅
+    Portrait  2160x3840 → smaller = 2160 →   4K ✅
     """
-    w = min(width, height)  # short side = width for portrait
-    if w >= 2160:
-        return "4K", "4K"
-    elif w >= 1440:
-        return "2K", "2K"
-    elif w >= 1080:
-        return "1080P", "1080P"
-    elif w >= 720:
-        return "720P", "HD"
-    elif w >= 480:
-        return "480P", "SD"
+    p = min(width, height)   # pixel count of shorter axis
+
+    if p >= 2160:   return "4K"
+    elif p >= 1440: return "2K"
+    elif p >= 1080: return "1080P"
+    elif p >= 720:  return "720P"
+    elif p >= 480:  return "480P"
+    else:           return "360P"
+
+
+def get_fps_and_engine(size_bytes, duration):
+    if size_bytes and duration:
+        bitrate = (size_bytes * 8) / duration  # bps
     else:
-        return "360P", "SD"
+        bitrate = 0
+
+    if bitrate >= 15_000_000:
+        return 120, "Zilem Optimized"
+    elif bitrate >= 8_000_000:
+        return 60, "Zilem Optimized"
+    else:
+        return 30, "Standard"
 
 
 async def scrape_tiktok(url: str) -> dict:
@@ -85,39 +95,18 @@ def _scrape_sync(url: str) -> dict:
     if not d:
         raise Exception("No data returned")
 
-    author = d.get("author", {})
-
-    # --- Dimensions ---
-    width  = int(d.get("width")  or 1080)
-    height = int(d.get("height") or 1920)
-    resolution, quality_lbl = get_resolution(width, height)
-    web_quality   = f"{resolution} • {width}x{height}"
-    phone_quality = resolution
-
-    # --- FPS ---
-    # tikwm does not provide real FPS — use file size heuristic
+    author     = d.get("author", {})
+    width      = int(d.get("width")  or 0)
+    height     = int(d.get("height") or 0)
     duration   = int(d.get("duration") or 0)
     size_bytes = int(d.get("size") or 0)
-    # bitrate = size * 8 / duration
-    if size_bytes and duration:
-        bitrate = (size_bytes * 8) / duration  # bits per second
-    else:
-        bitrate = 0
 
-    # >8 Mbps usually means 60fps+, >15 Mbps usually 120fps
-    if bitrate >= 15_000_000:
-        fps = 120
-    elif bitrate >= 8_000_000:
-        fps = 60
-    else:
-        fps = 30
+    resolution            = get_resolution(width, height) if width and height else "Unknown"
+    fps, engine           = get_fps_and_engine(size_bytes, duration)
+    web_quality           = f"{resolution} • {width}x{height}"
+    phone_quality         = resolution
+    file_size_mb          = f"{size_bytes / 1024 / 1024:.1f}" if size_bytes else "—"
 
-    engine = "HFR" if fps >= 60 else "Standard"
-
-    # --- File size ---
-    file_size_mb = f"{size_bytes / 1024 / 1024:.1f}" if size_bytes else "—"
-
-    # --- Upload date ---
     create_time = d.get("create_time")
     if create_time:
         dt = datetime.utcfromtimestamp(int(create_time))
@@ -125,11 +114,9 @@ def _scrape_sync(url: str) -> dict:
     else:
         uploaded_at = "—"
 
-    # --- Account status ---
     private        = bool(author.get("is_private") or author.get("privateAccount"))
     account_status = "private" if private else "safe"
 
-    # --- Description / hashtags ---
     desc     = d.get("title") or ""
     hashtags = " ".join(re.findall(r"#\w+", desc))
     title    = re.sub(r"#\w+", "", desc).strip() or desc
