@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activate Your Zilem Key</title>
+<style>
+  :root { --bg:#0f0f12; --card:#1a1a1f; --border:#2a2a31; --text:#e5e5ea; --muted:#8a8a96; --purple:#7c3aed; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, system-ui, sans-serif; background:var(--bg); color:var(--text);
+         display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:32px; max-width:420px; width:100%; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  input { width:100%; padding:12px 14px; border-radius:10px; border:1px solid var(--border); background:#0a0a0d;
+          color:var(--text); font-size:14px; font-family:monospace; margin-bottom:12px; }
+  button { width:100%; padding:12px; border-radius:10px; border:none; background:var(--purple); color:#fff;
+           font-weight:600; font-size:14px; cursor:pointer; }
+  button:hover { background:#6d28d9; }
+  #result { margin-top:16px; font-size:13px; }
+  .ok { color:#34d399; }
+  .err { color:#f87171; }
+  .tier-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:999px; font-size:13px; font-weight:600; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔑 Activate your Zilem key</h1>
+    <div class="sub">Paste the key from <code>/getkey</code> in Discord to check its tier.</div>
+    <input type="text" id="keyInput" placeholder="ZILEM-D-XXXX-XXXX" autocomplete="off" spellcheck="false">
+    <button onclick="check()">Verify</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+  async function check() {
+    const key = document.getElementById('keyInput').value.trim().toUpperCase();
+    const result = document.getElementById('result');
+    if (!key) { result.innerHTML = '<span class="err">Enter a key.</span>'; return; }
+    result.textContent = 'Checking...';
+    try {
+      const resp = await fetch(`/api/validate?key=${encodeURIComponent(key)}`);
+      const data = await resp.json();
+      if (!resp.ok || !data.valid) {
+        result.innerHTML = `<span class="err">❌ ${data.error || 'Invalid key'}</span>`;
+        return;
+      }
+      result.innerHTML = `
+        <div class="ok">✅ Valid key for <strong>${data.display_name}</strong></div>
+        <div class="tier-pill" style="background:${data.tier_color}22; color:${data.tier_color};">
+          ${data.tier_emoji} ${data.tier_label} — ${data.limit_mb} MB
+        </div>`;
+    } catch (e) {
+      result.innerHTML = '<span class="err">Network error.</span>';
+    }
+  }
+  </script>
+</body>
+</html>
