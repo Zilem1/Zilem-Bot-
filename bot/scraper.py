@@ -1,6 +1,6 @@
 """
 scraper.py — TikTok scraper using tikwm.com
-FPS is parsed from actual video file header (MP4 box parsing)
+FPS parsed from MP4 boxes using proper box tree walking
 """
 import urllib.request
 import urllib.parse
@@ -55,92 +55,103 @@ def get_resolution(width, height):
     else:           return "360P"
 
 
+def find_boxes(data, target_names):
+    """
+    Walk MP4 box tree and collect all boxes matching target_names.
+    Returns dict of {name: [bytes, ...]}
+    """
+    results = {n: [] for n in target_names}
+
+    def walk(buf, offset, end):
+        while offset + 8 <= end:
+            if offset + 4 > len(buf):
+                break
+            size = struct.unpack('>I', buf[offset:offset+4])[0]
+            if size < 8:
+                break
+            name = buf[offset+4:offset+8]
+            box_end = offset + size
+            if box_end > len(buf):
+                box_end = len(buf)
+
+            name_str = name.decode('latin-1', errors='replace')
+            if name_str in target_names:
+                results[name_str].append(buf[offset:box_end])
+
+            # Container boxes — walk into them
+            if name in (b'moov', b'trak', b'mdia', b'minf', b'stbl'):
+                walk(buf, offset + 8, box_end)
+
+            offset += size
+            if offset <= 0:
+                break
+
+    walk(data, 0, len(data))
+    return results
+
+
+def parse_fps_from_mp4(data: bytes) -> int:
+    """
+    Walk MP4 boxes to find mdhd (timescale) and stts (sample delta).
+    FPS = timescale / sample_delta
+    """
+    boxes = find_boxes(data, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'mdhd', 'stts'])
+
+    timescales = []
+    for box in boxes.get('mdhd', []):
+        try:
+            version = box[8]
+            if version == 0:
+                ts = struct.unpack('>I', box[20:24])[0]
+            else:
+                ts = struct.unpack('>I', box[28:32])[0]
+            if ts > 0:
+                timescales.append(ts)
+        except Exception:
+            pass
+
+    fps_values = []
+    for box in boxes.get('stts', []):
+        try:
+            entry_count = struct.unpack('>I', box[12:16])[0]
+            if entry_count > 0:
+                sample_delta = struct.unpack('>I', box[20:24])[0]
+                if sample_delta > 0:
+                    for ts in timescales:
+                        fps = ts / sample_delta
+                        if 1 <= fps <= 240:
+                            fps_values.append(round(fps))
+        except Exception:
+            pass
+
+    if fps_values:
+        return max(set(fps_values), key=fps_values.count)
+    return 0
+
+
 def fetch_fps_from_video(video_url: str) -> int:
     """
-    Download first 2MB of the MP4 and scan for the 'mvhd' or 'mdhd' box
-    which contains the real timescale/duration to compute FPS,
-    or find 'vmhd'/'stts' for frame count.
-    We look for the tkhd/mdhd timescale approach.
+    Download MP4 in chunks until we find moov box.
+    Try first 512KB, then 2MB, then 8MB.
     """
-    try:
-        req = urllib.request.Request(
-            video_url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Range": "bytes=0-2097151",  # first 2MB
-            }
-        )
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = resp.read()
+    for chunk_size in [524288, 2097152, 8388608]:
+        try:
+            req = urllib.request.Request(
+                video_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Range": f"bytes=0-{chunk_size-1}",
+                }
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = resp.read()
 
-        # Search for 'mdhd' box — contains timescale and duration for each track
-        # mdhd structure: size(4) + 'mdhd'(4) + version(1) + flags(3) +
-        #   if version==0: creation(4)+modification(4)+timescale(4)+duration(4)
-        #   if version==1: creation(8)+modification(8)+timescale(4)+duration(8)
-        fps_candidates = []
-        i = 0
-        while i < len(data) - 8:
-            box_name = data[i+4:i+8]
-            if box_name == b'mdhd':
-                try:
-                    version = data[i+8]
-                    if version == 0:
-                        timescale = struct.unpack('>I', data[i+20:i+24])[0]
-                        duration  = struct.unpack('>I', data[i+24:i+28])[0]
-                    else:
-                        timescale = struct.unpack('>I', data[i+28:i+32])[0]
-                        duration  = struct.unpack('>Q', data[i+32:i+40])[0]
-
-                    if timescale and duration:
-                        # timescale is ticks per second, duration is total ticks
-                        # This gives us seconds, not FPS directly
-                        # But video track mdhd timescale is often set to FPS * N
-                        # We collect it and analyze
-                        fps_candidates.append(timescale)
-                except Exception:
-                    pass
-            i += 1
-
-        # Also search for 'stts' (sample-to-time) box — most accurate
-        # stts: size(4) + 'stts'(4) + version(1) + flags(3) +
-        #       entry_count(4) + [sample_count(4) + sample_delta(4)] * entry_count
-        # fps = timescale / sample_delta  (need mdhd timescale of video track)
-        stts_fps = []
-        i = 0
-        while i < len(data) - 8:
-            box_name = data[i+4:i+8]
-            if box_name == b'stts':
-                try:
-                    entry_count = struct.unpack('>I', data[i+12:i+16])[0]
-                    if entry_count > 0 and entry_count < 1000:
-                        sample_delta = struct.unpack('>I', data[i+20:i+24])[0]
-                        if sample_delta and sample_delta < 10000:
-                            # fps = timescale / sample_delta
-                            # Common: timescale=90000, delta=750 → 120fps
-                            #         timescale=90000, delta=1500 → 60fps
-                            #         timescale=90000, delta=3000 → 30fps
-                            #         timescale=12800, delta=512  → 25fps
-                            for ts in fps_candidates:
-                                candidate = round(ts / sample_delta)
-                                if 1 <= candidate <= 240:
-                                    stts_fps.append(candidate)
-                except Exception:
-                    pass
-            i += 1
-
-        if stts_fps:
-            return max(set(stts_fps), key=stts_fps.count)
-
-        # Fallback: common timescales map
-        for ts in fps_candidates:
-            if ts in (12800, 90000, 180000):
-                # can't determine without stts, return 0
-                pass
-
-        return 0
-
-    except Exception:
-        return 0
+            fps = parse_fps_from_mp4(data)
+            if fps:
+                return fps
+        except Exception:
+            continue
+    return 0
 
 
 async def scrape_tiktok(url: str) -> dict:
@@ -168,28 +179,24 @@ def _scrape_sync(url: str) -> dict:
     duration   = int(d.get("duration") or 0)
     size_bytes = int(d.get("size") or 0)
 
-    # Resolution
     if width and height:
         resolution    = get_resolution(width, height)
         web_quality   = f"{resolution} • {width}x{height}"
         phone_quality = resolution
     else:
-        resolution    = "—"
-        web_quality   = "—"
-        phone_quality = "—"
+        resolution    = "1080P"
+        web_quality   = "1080P"
+        phone_quality = "1080P"
 
     # Get real FPS from video file
     video_url = d.get("hdplay") or d.get("play") or ""
-    fps = 0
-    if video_url:
-        fps = fetch_fps_from_video(video_url)
+    fps = fetch_fps_from_video(video_url) if video_url else 0
 
     if fps:
         engine = "Zilem Optimized" if fps >= 60 else "Standard"
-        fps_display = fps
     else:
-        engine      = "—"
-        fps_display = "—"
+        fps    = "—"
+        engine = "—"
 
     file_size_mb = f"{size_bytes / 1024 / 1024:.1f}" if size_bytes else "—"
 
@@ -219,7 +226,7 @@ def _scrape_sync(url: str) -> dict:
         "uploaded_at":    uploaded_at,
         "duration":       fmt_duration(duration),
         "resolution":     resolution,
-        "fps":            fps_display,
+        "fps":            fps,
         "web_quality":    web_quality,
         "phone_quality":  phone_quality,
         "engine":         engine,
@@ -230,5 +237,5 @@ def _scrape_sync(url: str) -> dict:
         "shares":         fmt_num(d.get("share_count")   or 0),
         "bookmarks":      fmt_num(d.get("collect_count") or 0),
         "downloads":      fmt_num(d.get("download_count") or 0),
-                    }
+}
     
