@@ -159,7 +159,7 @@ def tier_embed(key_info: dict, is_new: bool) -> discord.Embed:
     embed.add_field(name="File Limit",  value=limit, inline=True)
     embed.add_field(
         name="Activate at",
-        value="[zilem.app/activate](https://zilem.app/activate)",
+        value="[zilem.netlify.app/](https://zilem.netlify.app/)",
         inline=False
     )
     if key_info.get("avatar_url"):
