@@ -77,13 +77,16 @@ def _scrape_sync(url: str) -> dict:
     if not height: height = int(info.get("height") or 1920)
 
     short_side = min(width, height)
-    if short_side >= 2160:   resolution = "4K"
-    elif short_side >= 1440: resolution = "2K"
-    elif short_side >= 1080: resolution = "1080P"
-    elif short_side >= 720:  resolution = "720P"
-    else:                    resolution = "480P"
-
-    quality_lbl   = "4K" if short_side >= 1080 else ("HD" if short_side >= 720 else "SD")
+    if short_side >= 2160:
+        resolution = "4K";    quality_lbl = "4K"
+    elif short_side >= 1440:
+        resolution = "2K";    quality_lbl = "2K"
+    elif short_side >= 1080:
+        resolution = "1080P"; quality_lbl = "1080P"
+    elif short_side >= 720:
+        resolution = "720P";  quality_lbl = "HD"
+    else:
+        resolution = "480P";  quality_lbl = "SD"
     web_quality   = f"{quality_lbl} • {width}x{height}"
     phone_quality = quality_lbl
     engine        = "HFR" if fps >= 60 else "Standard"
@@ -143,5 +146,5 @@ def _scrape_sync(url: str) -> dict:
         "shares":         fmt_num(shares),
         "bookmarks":      fmt_num(bookmarks),
         "downloads":      "—",
-        }
+    }
     
