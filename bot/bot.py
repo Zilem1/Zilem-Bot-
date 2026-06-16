@@ -257,6 +257,37 @@ async def check(interaction: discord.Interaction, url: str):
     )
     await interaction.followup.send(embed=embed, ephemeral=True)
 
+# ── /checkffmpeg (diagnostic) ────────────────────────────────────────────────
+@tree.command(name="checkffmpeg", description="[Diagnostic] Check if ffprobe/ffmpeg is installed on this server")
+async def checkffmpeg(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            first_line = result.stdout.splitlines()[0] if result.stdout else "ffprobe ran but gave no output"
+            await interaction.followup.send(f"✅ ffprobe is installed:\n```{first_line}```", ephemeral=True)
+        else:
+            await interaction.followup.send(
+                f"⚠️ ffprobe exists but exited with code {result.returncode}:\n```{result.stderr[:500]}```",
+                ephemeral=True,
+            )
+    except FileNotFoundError:
+        await interaction.followup.send(
+            "❌ ffprobe NOT found on this system. The `ffmpeg` package is not installed — "
+            "check that `\"ffmpeg\"` is listed in `nixPkgs` in `nixpacks.toml`, then redeploy.",
+            ephemeral=True,
+        )
+    except subprocess.TimeoutExpired:
+        await interaction.followup.send("⚠️ ffprobe found but timed out responding.", ephemeral=True)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Unexpected error checking ffprobe: `{e}`", ephemeral=True)
+
 # ── /revokekey (admin) ────────────────────────────────────────────────────────
 @tree.command(name="revokekey", description="[Admin] Revoke a user's license key")
 @app_commands.checks.has_permissions(administrator=True)
@@ -311,4 +342,4 @@ async def on_app_command_error(interaction: discord.Interaction, error):
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
-                            
+    
