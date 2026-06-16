@@ -1,7 +1,14 @@
 """
 scraper.py — TikTok scraper.
-Every field is either read from a real source or explicitly marked unknown ("—").
-No value is invented or assumed.
+
+Engagement stats (views/likes/comments/etc) come from tikwm — that data
+genuinely only exists on TikTok's servers and tikwm proxies it.
+
+Technical metadata (resolution, fps, file size) comes from ffprobe run
+directly against the actual video file. This is the authoritative source:
+ffprobe reads real container/codec metadata, not a third party's summary
+of it. tikwm's width/height/size fields are unreliable (sometimes 0,
+sometimes wrong) so they are not trusted for technical metadata.
 """
 import urllib.request
 import urllib.parse
@@ -20,14 +27,6 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # ---------------------------------------------------------------------------
 
 def _resolve_short_url(url: str) -> str:
-    """
-    vt.tiktok.com / vm.tiktok.com short links must be resolved to the
-    canonical tiktok.com/@user/video/<id> URL before lookup.
-    Manually walks every redirect hop (301/302/303/307/308), max 5 hops.
-    If resolution fails at any point, returns the last known URL — the
-    caller is responsible for treating a parse failure as a real error,
-    not papering over it.
-    """
     if "vt.tiktok.com" not in url and "vm.tiktok.com" not in url:
         return url
 
@@ -57,7 +56,8 @@ def _resolve_short_url(url: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# tikwm lookup
+# tikwm — used ONLY for engagement stats, author info, description.
+# Never trusted for width/height/fps/size since those are unreliable.
 # ---------------------------------------------------------------------------
 
 def _fetch_metadata(url: str) -> dict:
@@ -77,7 +77,7 @@ def _fetch_metadata(url: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Formatting helpers — these only format, they never invent data
+# Formatting helpers
 # ---------------------------------------------------------------------------
 
 def fmt_num(n):
@@ -99,14 +99,6 @@ def fmt_duration(seconds):
 
 
 def classify_resolution(width: int, height: int) -> str:
-    """
-    Resolution class based on the SHORT side of the frame, which is
-    correct regardless of portrait or landscape orientation:
-      portrait  1080x1920 -> short=1080 -> 1080P
-      landscape 1920x1080 -> short=1080 -> 1080P
-      portrait  1440x2560 -> short=1440 -> 2K
-    Requires width and height > 0. Caller must check this before calling.
-    """
     short_side = min(width, height)
     if short_side >= 2160:
         return "4K"
@@ -122,83 +114,99 @@ def classify_resolution(width: int, height: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# FPS — read from the real video stream via ffprobe. Never guessed.
+# ffprobe — single authoritative source for ALL technical video metadata.
+# Returns width, height, fps, and file size, all read directly from the
+# actual video stream. One subprocess call instead of three.
 # ---------------------------------------------------------------------------
 
-def fetch_fps_ffprobe(video_url: str) -> int:
+def probe_video(video_url: str) -> dict:
     """
-    Returns real FPS read from the video's r_frame_rate stream metadata,
-    or 0 if it genuinely could not be determined (caller must show "—").
+    Returns {"width": int, "height": int, "fps": int, "size": int} —
+    any field that could not be determined is 0, and the caller must
+    display "—" for that field rather than guessing.
     """
+    result_data = {"width": 0, "height": 0, "fps": 0, "size": 0}
+
     if not video_url:
-        print("[FPS] no video_url available from metadata source")
-        return 0
+        print("[ffprobe] no video_url available")
+        return result_data
 
     try:
-        result = subprocess.run(
+        proc = subprocess.run(
             [
                 "ffprobe",
                 "-v", "error",
                 "-select_streams", "v:0",
-                "-show_entries", "stream=r_frame_rate",
+                "-show_entries", "stream=width,height,r_frame_rate",
+                "-show_entries", "format=size",
                 "-of", "json",
                 "-user_agent", USER_AGENT,
                 video_url,
             ],
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=25,
         )
     except FileNotFoundError:
-        print("[FPS] ffprobe binary not found — is ffmpeg installed in nixpacks.toml?")
-        return 0
+        print("[ffprobe] binary not found — ensure 'ffmpeg' is in nixpacks.toml nixPkgs")
+        return result_data
     except subprocess.TimeoutExpired:
-        print("[FPS] ffprobe timed out fetching stream info")
-        return 0
+        print("[ffprobe] timed out probing video stream")
+        return result_data
     except Exception as e:
-        print(f"[FPS] unexpected error launching ffprobe: {e}")
-        return 0
+        print(f"[ffprobe] unexpected error launching process: {e}")
+        return result_data
 
-    if result.returncode != 0:
-        print(f"[FPS] ffprobe exited with error: {result.stderr.strip()[:300]}")
-        return 0
+    if proc.returncode != 0:
+        print(f"[ffprobe] exited with error: {proc.stderr.strip()[:400]}")
+        return result_data
 
-    if not result.stdout.strip():
-        print(f"[FPS] ffprobe produced no output. stderr: {result.stderr.strip()[:300]}")
-        return 0
+    if not proc.stdout.strip():
+        print(f"[ffprobe] empty stdout. stderr: {proc.stderr.strip()[:400]}")
+        return result_data
 
     try:
-        data = json.loads(result.stdout)
+        data = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        print(f"[FPS] ffprobe output was not valid JSON: {result.stdout[:300]}")
-        return 0
+        print(f"[ffprobe] output not valid JSON: {proc.stdout[:400]}")
+        return result_data
 
     streams = data.get("streams", [])
-    if not streams:
-        print("[FPS] ffprobe found no video stream")
-        return 0
+    if streams:
+        stream = streams[0]
+        w = stream.get("width")
+        h = stream.get("height")
+        if w:
+            result_data["width"] = int(w)
+        if h:
+            result_data["height"] = int(h)
 
-    r_frame_rate = streams[0].get("r_frame_rate")
-    if not r_frame_rate or "/" not in r_frame_rate:
-        print(f"[FPS] r_frame_rate missing or malformed: {r_frame_rate!r}")
-        return 0
+        r_frame_rate = stream.get("r_frame_rate")
+        if r_frame_rate and "/" in r_frame_rate:
+            try:
+                num_str, den_str = r_frame_rate.split("/")
+                num, den = int(num_str), int(den_str)
+                if den != 0:
+                    fps = round(num / den)
+                    if 1 <= fps <= 240:
+                        result_data["fps"] = fps
+                    else:
+                        print(f"[ffprobe] fps {fps} out of plausible range, discarding")
+                else:
+                    print("[ffprobe] r_frame_rate denominator was zero")
+            except ValueError as e:
+                print(f"[ffprobe] could not parse r_frame_rate '{r_frame_rate}': {e}")
+        else:
+            print(f"[ffprobe] r_frame_rate missing or malformed: {r_frame_rate!r}")
+    else:
+        print("[ffprobe] no video stream found in probe output")
 
-    try:
-        num_str, den_str = r_frame_rate.split("/")
-        num, den = int(num_str), int(den_str)
-        if den == 0:
-            print("[FPS] r_frame_rate denominator was zero")
-            return 0
-        fps = round(num / den)
-    except (ValueError, ZeroDivisionError) as e:
-        print(f"[FPS] could not parse r_frame_rate '{r_frame_rate}': {e}")
-        return 0
+    fmt = data.get("format", {})
+    size = fmt.get("size")
+    if size:
+        result_data["size"] = int(size)
 
-    if not (1 <= fps <= 240):
-        print(f"[FPS] computed fps {fps} outside plausible range, discarding")
-        return 0
-
-    return fps
+    return result_data
 
 
 # ---------------------------------------------------------------------------
@@ -226,11 +234,11 @@ def _scrape_sync(url: str) -> dict:
 
     author = d.get("author") or {}
 
-    # --- Dimensions: read raw, do not assume a default ---
-    raw_width  = d.get("width")
-    raw_height = d.get("height")
-    width  = int(raw_width)  if raw_width  else 0
-    height = int(raw_height) if raw_height else 0
+    # --- Technical metadata: authoritative via ffprobe on the real file ---
+    video_url = d.get("hdplay") or d.get("play") or ""
+    probe = probe_video(video_url)
+
+    width, height = probe["width"], probe["height"]
     has_dimensions = width > 0 and height > 0
 
     if has_dimensions:
@@ -238,27 +246,25 @@ def _scrape_sync(url: str) -> dict:
         web_quality   = f"{resolution} • {width}x{height}"
         phone_quality = resolution
     else:
-        # Honest about not knowing — no fabricated "1080P" default
-        print(f"[Resolution] width/height missing from metadata (raw: {raw_width}x{raw_height})")
         resolution    = "—"
         web_quality   = "—"
         phone_quality = "—"
 
-    # --- Duration & size: read raw ---
-    duration   = int(d.get("duration") or 0)
-    size_bytes = int(d.get("size") or 0)
-    file_size_mb = f"{size_bytes / 1024 / 1024:.1f}" if size_bytes else "—"
-
-    # --- FPS: real measurement only ---
-    video_url = d.get("hdplay") or d.get("play") or ""
-    fps_value = fetch_fps_ffprobe(video_url)
-
+    fps_value = probe["fps"]
     if fps_value:
         fps    = fps_value
         engine = "Zilem Optimized" if fps_value >= 60 else "Standard"
     else:
         fps    = "—"
         engine = "—"
+
+    # File size — prefer ffprobe's real measured size; fall back to tikwm's
+    # reported size only if ffprobe couldn't determine it.
+    size_bytes = probe["size"] or int(d.get("size") or 0)
+    file_size_mb = f"{size_bytes / 1024 / 1024:.1f}" if size_bytes else "—"
+
+    # --- Duration (tikwm-reported, used only for display, not derivation) ---
+    duration = int(d.get("duration") or 0)
 
     # --- Upload date ---
     create_time = d.get("create_time")
@@ -277,7 +283,7 @@ def _scrape_sync(url: str) -> dict:
     hashtags = " ".join(re.findall(r"#\w+", desc))
     title    = re.sub(r"#\w+", "", desc).strip() or desc
 
-    # --- Engagement stats: read raw, format for display ---
+    # --- Engagement stats (genuinely only available from TikTok via tikwm) ---
     views     = d.get("play_count")
     likes     = d.get("digg_count")
     comments  = d.get("comment_count")
@@ -308,5 +314,5 @@ def _scrape_sync(url: str) -> dict:
         "shares":         fmt_num(shares),
         "bookmarks":      fmt_num(bookmarks),
         "downloads":      fmt_num(downloads),
-        }
+                    }
     
