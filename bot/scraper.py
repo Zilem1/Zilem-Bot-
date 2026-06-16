@@ -1,12 +1,13 @@
 """
-scraper.py — TikTok scraper using tikwm.com
-FPS parsed from MP4 boxes using proper box tree walking
+scraper.py — TikTok scraper using tikwm.com + ffprobe for real FPS
 """
 import urllib.request
 import urllib.parse
 import json
 import re
-import struct
+import subprocess
+import tempfile
+import os
 from datetime import datetime
 
 API_URL = "https://www.tikwm.com/api/"
@@ -55,102 +56,36 @@ def get_resolution(width, height):
     else:           return "360P"
 
 
-def find_boxes(data, target_names):
+def fetch_fps_ffprobe(video_url: str) -> int:
     """
-    Walk MP4 box tree and collect all boxes matching target_names.
-    Returns dict of {name: [bytes, ...]}
+    Use ffprobe to get exact FPS from the video stream.
+    ffprobe can read directly from URL without downloading the full file.
     """
-    results = {n: [] for n in target_names}
-
-    def walk(buf, offset, end):
-        while offset + 8 <= end:
-            if offset + 4 > len(buf):
-                break
-            size = struct.unpack('>I', buf[offset:offset+4])[0]
-            if size < 8:
-                break
-            name = buf[offset+4:offset+8]
-            box_end = offset + size
-            if box_end > len(buf):
-                box_end = len(buf)
-
-            name_str = name.decode('latin-1', errors='replace')
-            if name_str in target_names:
-                results[name_str].append(buf[offset:box_end])
-
-            # Container boxes — walk into them
-            if name in (b'moov', b'trak', b'mdia', b'minf', b'stbl'):
-                walk(buf, offset + 8, box_end)
-
-            offset += size
-            if offset <= 0:
-                break
-
-    walk(data, 0, len(data))
-    return results
-
-
-def parse_fps_from_mp4(data: bytes) -> int:
-    """
-    Walk MP4 boxes to find mdhd (timescale) and stts (sample delta).
-    FPS = timescale / sample_delta
-    """
-    boxes = find_boxes(data, ['moov', 'trak', 'mdia', 'minf', 'stbl', 'mdhd', 'stts'])
-
-    timescales = []
-    for box in boxes.get('mdhd', []):
-        try:
-            version = box[8]
-            if version == 0:
-                ts = struct.unpack('>I', box[20:24])[0]
-            else:
-                ts = struct.unpack('>I', box[28:32])[0]
-            if ts > 0:
-                timescales.append(ts)
-        except Exception:
-            pass
-
-    fps_values = []
-    for box in boxes.get('stts', []):
-        try:
-            entry_count = struct.unpack('>I', box[12:16])[0]
-            if entry_count > 0:
-                sample_delta = struct.unpack('>I', box[20:24])[0]
-                if sample_delta > 0:
-                    for ts in timescales:
-                        fps = ts / sample_delta
-                        if 1 <= fps <= 240:
-                            fps_values.append(round(fps))
-        except Exception:
-            pass
-
-    if fps_values:
-        return max(set(fps_values), key=fps_values.count)
-    return 0
-
-
-def fetch_fps_from_video(video_url: str) -> int:
-    """
-    Download MP4 in chunks until we find moov box.
-    Try first 512KB, then 2MB, then 8MB.
-    """
-    for chunk_size in [524288, 2097152, 8388608]:
-        try:
-            req = urllib.request.Request(
-                video_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Range": f"bytes=0-{chunk_size-1}",
-                }
-            )
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                data = resp.read()
-
-            fps = parse_fps_from_mp4(data)
-            if fps:
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=r_frame_rate",
+                "-of", "json",
+                video_url
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        data = json.loads(result.stdout)
+        streams = data.get("streams", [])
+        if streams:
+            r_frame_rate = streams[0].get("r_frame_rate", "0/1")
+            # r_frame_rate is like "120/1" or "2997/100" or "60000/1001"
+            num, den = r_frame_rate.split("/")
+            fps = round(int(num) / int(den))
+            if 1 <= fps <= 240:
                 return fps
-        except Exception:
-            continue
+    except Exception:
+        pass
     return 0
 
 
@@ -188,9 +123,8 @@ def _scrape_sync(url: str) -> dict:
         web_quality   = "1080P"
         phone_quality = "1080P"
 
-    # Get real FPS from video file
     video_url = d.get("hdplay") or d.get("play") or ""
-    fps = fetch_fps_from_video(video_url) if video_url else 0
+    fps = fetch_fps_ffprobe(video_url) if video_url else 0
 
     if fps:
         engine = "Zilem Optimized" if fps >= 60 else "Standard"
