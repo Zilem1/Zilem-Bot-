@@ -171,5 +171,5 @@ def _scrape_sync(url: str) -> dict:
         "shares":         fmt_num(d.get("share_count")   or 0),
         "bookmarks":      fmt_num(d.get("collect_count") or 0),
         "downloads":      fmt_num(d.get("download_count") or 0),
-}
+    }
     
