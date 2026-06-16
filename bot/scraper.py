@@ -13,7 +13,26 @@ from datetime import datetime
 API_URL = "https://www.tikwm.com/api/"
 
 
+def _resolve_short_url(url: str) -> str:
+    """
+    vt.tiktok.com and vm.tiktok.com short links need to be resolved
+    to the full tiktok.com URL before tikwm can parse them.
+    """
+    if "vt.tiktok.com" not in url and "vm.tiktok.com" not in url:
+        return url
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+        )
+        resp = urllib.request.urlopen(req, timeout=10)
+        return resp.url  # follows redirects, returns final URL
+    except Exception:
+        return url
+
+
 def _post(url: str) -> dict:
+    url = _resolve_short_url(url)
     payload = urllib.parse.urlencode({"url": url, "hd": 1}).encode()
     req = urllib.request.Request(
         API_URL,
@@ -195,5 +214,5 @@ def _scrape_sync(url: str) -> dict:
         "shares":         fmt_num(d.get("share_count")   or 0),
         "bookmarks":      fmt_num(d.get("collect_count") or 0),
         "downloads":      fmt_num(d.get("download_count") or 0),
-        }
+    }
     
