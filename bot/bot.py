@@ -212,50 +212,86 @@ async def check(interaction: discord.Interaction, url: str):
         return
 
     if d["account_status"] == "safe":
-        status_str = "🟢 Safe *(Active)*"
+        status_str = "🟢 Active"
     elif d["account_status"] == "private":
         status_str = "🔒 Private"
     else:
         status_str = "🔴 Banned"
 
     verified_mark = " ✓" if d["verified"] else ""
+    quality_tag = f"{d['resolution']} · {d['fps']}FPS" if d['fps'] != "—" else d['resolution']
 
     embed = discord.Embed(
-        title=f"🔍 {d['author']}{verified_mark} 😛 [{d['resolution']}{d['fps']}FPS]",
+        title=f"{d['author']}{verified_mark}",
         url=url,
-        description=d["hashtags"] or d["title"],
-        color=0x1a1a2e,
+        description=(
+            f"```{quality_tag}```\n"
+            + (d["hashtags"] if d["hashtags"] else "")
+            + (f"\n{d['title']}" if d["title"] and d["title"] != d["hashtags"] else "")
+        ).strip(),
+        color=0x9D4EDD,
     )
+
+    embed.add_field(name="🌐 Region", value=f"`{d['region']}`", inline=True)
+    embed.add_field(name="⏱️ Duration", value=f"`{d['duration']}`", inline=True)
+    embed.add_field(name="📅 Uploaded", value=f"`{d['uploaded_at']}`", inline=True)
+
+    embed.add_field(
+        name="⚙️ Technical Details",
+        value=(
+            f"```ansi\n"
+            f"Engine        {d['engine']}\n"
+            f"Web Quality   {d['web_quality']}\n"
+            f"Phone Quality {d['phone_quality']}\n"
+            f"Framerate     {d['fps']} FPS\n"
+            f"File Size     {d['file_size_mb']} MB\n"
+            f"Status        {d['account_status'].upper()}\n"
+            f"```"
+        ),
+        inline=False,
+    )
+
+    embed.add_field(
+        name="📊 Engagement",
+        value=(
+            f"👁️ **{d['views']}**   ❤️ **{d['likes']}**   💬 **{d['comments']}**\n"
+            f"⭐ **{d['bookmarks']}**   🔁 **{d['shares']}**   📥 **{d['downloads']}**"
+        ),
+        inline=False,
+    )
+
     embed.add_field(
         name="\u200b",
-        value=f"@{d['author']} • 🌐 {d['region']}\n⏱️ Duration: {d['duration']} | 📅 Uploaded: {d['uploaded_at']}",
+        value=f"🆔 `{d['video_id']}`  •  {status_str}",
         inline=False,
     )
-    embed.add_field(
-        name="⚙️ TECHNICAL METADATA",
-        value="\n".join([
-            f"• Engine: `{d['engine']}`",
-            f"• Web Quality: `{d['web_quality']}`",
-            f"• Phone Quality: `{d['phone_quality']}`",
-            f"• Framerate: `{d['fps']} FPS`",
-            f"• File Size: `{d['file_size_mb']} MB`",
-            f"• Account Status: {status_str}",
-            f"• Video ID: `{d['video_id']}`",
-        ]),
-        inline=False,
-    )
-    embed.add_field(
-        name="📊 ENGAGEMENT METRICS",
-        value=f"👁️ {d['views']}  ❤️ {d['likes']}  💬 {d['comments']}  ⭐ {d['bookmarks']}  🔁 {d['shares']}  📥 {d['downloads']}",
-        inline=False,
-    )
+
     if d.get("thumbnail"):
         embed.set_thumbnail(url=d["thumbnail"])
 
+    embed.set_author(name="Zilem Optimizer", icon_url=interaction.client.user.display_avatar.url if interaction.client.user.display_avatar else None)
+    embed.set_footer(text=f"Requested by {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None)
+    embed.timestamp = datetime.utcnow()
+
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(
+        label="View on TikTok",
+        style=discord.ButtonStyle.link,
+        url=url,
+        emoji="🔗",
+    ))
+    if d.get("video_url"):
+        view.add_item(discord.ui.Button(
+            label="Download Video",
+            style=discord.ButtonStyle.link,
+            url=d["video_url"],
+            emoji="📥",
+        ))
+
     await interaction.channel.send(
-        f"🔍 **@{interaction.user.name}** just checked a TikTok video using `/check`!"
+        f"🔍 {interaction.user.mention} just checked a TikTok video using `/check`!"
     )
-    await interaction.followup.send(embed=embed, ephemeral=True)
+    await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 # ── /checkffmpeg (diagnostic) ────────────────────────────────────────────────
 @tree.command(name="checkffmpeg", description="[Diagnostic] Check if ffprobe/ffmpeg is installed on this server")
@@ -342,4 +378,3 @@ async def on_app_command_error(interaction: discord.Interaction, error):
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
-    
