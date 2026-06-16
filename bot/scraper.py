@@ -314,5 +314,6 @@ def _scrape_sync(url: str) -> dict:
         "shares":         fmt_num(shares),
         "bookmarks":      fmt_num(bookmarks),
         "downloads":      fmt_num(downloads),
-                    }
+        "video_url":      video_url,
+            }
     
