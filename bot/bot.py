@@ -367,6 +367,51 @@ async def synckey(interaction: discord.Interaction):
             upsert_key(k["discord_id"], str(member), member.display_name, avatar, new_tier)
             updated += 1
     await interaction.followup.send(f"✅ Synced **{updated}** keys with current roles.", ephemeral=True)
+    # ── /announcement (admin) ─────────────────────────────────────────────────────
+@tree.command(name="announcement", description="Send an announcement embed to a channel")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    message = "The announcement text",
+    title   = "Embed title (optional)",
+    channel = "Channel to send to (defaults to current)",
+    ping    = "Who to ping"
+)
+@app_commands.choices(ping=[
+    app_commands.Choice(name="@everyone", value="everyone"),
+    app_commands.Choice(name="@here",     value="here"),
+    app_commands.Choice(name="None",      value="none"),
+])
+async def announcement(
+    interaction: discord.Interaction,
+    message: str,
+    title:   str = "📢 Announcement",
+    channel: discord.TextChannel = None,
+    ping:    str = "none"
+):
+    await interaction.response.defer(ephemeral=True)
+    target = channel or interaction.channel
+
+    embed = discord.Embed(
+        title       = title,
+        description = message,
+        color       = 0x7c3aed
+    )
+    embed.set_footer(text=f"Announced by {interaction.user.display_name} • Zilem Method")
+    embed.timestamp = datetime.utcnow()
+
+    ping_text = f"@{ping}" if ping != "none" else None
+
+    try:
+        await target.send(content=ping_text, embed=embed)
+        await interaction.followup.send(
+            f"✅ Announcement sent to {target.mention}", ephemeral=True
+        )
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ I don't have permission to post in that channel.", ephemeral=True
+        )
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 # ── Error handler ─────────────────────────────────────────────────────────────
 @tree.error
