@@ -146,7 +146,7 @@ def tier_embed(key_info: dict, is_new: bool) -> discord.Embed:
     return embed
 
 # ── Bot setup ─────────────────────────────────────────────────────────────────
-intents        = discord.Intents.default()
+intents         = discord.Intents.default()
 intents.members = True
 bot  = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
@@ -232,8 +232,8 @@ async def check(interaction: discord.Interaction, url: str):
         color=0x9D4EDD,
     )
 
-    embed.add_field(name="🌐 Region", value=f"`{d['region']}`", inline=True)
-    embed.add_field(name="⏱️ Duration", value=f"`{d['duration']}`", inline=True)
+    embed.add_field(name="🌐 Region",   value=f"`{d['region']}`",      inline=True)
+    embed.add_field(name="⏱️ Duration", value=f"`{d['duration']}`",    inline=True)
     embed.add_field(name="📅 Uploaded", value=f"`{d['uploaded_at']}`", inline=True)
 
     embed.add_field(
@@ -269,8 +269,14 @@ async def check(interaction: discord.Interaction, url: str):
     if d.get("thumbnail"):
         embed.set_thumbnail(url=d["thumbnail"])
 
-    embed.set_author(name="Zilem Optimizer", icon_url=interaction.client.user.display_avatar.url if interaction.client.user.display_avatar else None)
-    embed.set_footer(text=f"Requested by {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None)
+    embed.set_author(
+        name="Zilem Optimizer",
+        icon_url=interaction.client.user.display_avatar.url if interaction.client.user.display_avatar else None
+    )
+    embed.set_footer(
+        text=f"Requested by {interaction.user.display_name}",
+        icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None
+    )
     embed.timestamp = datetime.utcnow()
 
     view = discord.ui.View()
@@ -293,7 +299,7 @@ async def check(interaction: discord.Interaction, url: str):
     )
     await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
-# ── /checkffmpeg (diagnostic) ────────────────────────────────────────────────
+# ── /checkffmpeg (diagnostic) ─────────────────────────────────────────────────
 @tree.command(name="checkffmpeg", description="[Diagnostic] Check if ffprobe/ffmpeg is installed on this server")
 async def checkffmpeg(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -301,9 +307,7 @@ async def checkffmpeg(interaction: discord.Interaction):
     try:
         result = subprocess.run(
             ["ffprobe", "-version"],
-            capture_output=True,
-            text=True,
-            timeout=5,
+            capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0:
             first_line = result.stdout.splitlines()[0] if result.stdout else "ffprobe ran but gave no output"
@@ -323,6 +327,213 @@ async def checkffmpeg(interaction: discord.Interaction):
         await interaction.followup.send("⚠️ ffprobe found but timed out responding.", ephemeral=True)
     except Exception as e:
         await interaction.followup.send(f"❌ Unexpected error checking ffprobe: `{e}`", ephemeral=True)
+
+# ── /announcement (admin) ─────────────────────────────────────────────────────
+#
+#  Supports TWO modes:
+#
+#  1. SIMPLE  — just title + message, quick one-liner announcement
+#  2. RICH    — multi-section formatted announcement like the screenshot:
+#               use \n in message to separate paragraphs
+#               use [SECTION: Title] to start a new bold section header
+#               use [ITEM: 01 | Label] to add a numbered item header
+#               use [DIVIDER] to add a --- line
+#               use [BUTTON: Label | URL] to add a link button at the bottom
+#
+#  Example rich message (paste into Discord slash command):
+#  🔥 The engine just got better!\n[DIVIDER]\n[SECTION: ✨ NEW FEATURES]\n[ITEM: 01 | Native Video Preview]\nYou can now preview videos instantly.\n[DIVIDER]\n[BUTTON: Go to Tickets | https://discord.com/channels/...]
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+def parse_announcement(raw: str):
+    """
+    Parses the raw message string into a structured list of blocks.
+    Returns (embed_description, buttons)
+    """
+    import re
+    lines   = raw.replace("\\n", "\n").split("\n")
+    parts   = []
+    buttons = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            parts.append("")
+            continue
+
+        # [DIVIDER] → horizontal rule
+        if line.upper() == "[DIVIDER]":
+            parts.append("─" * 35)
+            continue
+
+        # [SECTION: Title] → bold large header
+        m = re.match(r"\[SECTION:\s*(.+?)\]", line, re.IGNORECASE)
+        if m:
+            parts.append(f"\n**{m.group(1).strip()}**")
+            continue
+
+        # [ITEM: 01 | Label] → numbered item header
+        m = re.match(r"\[ITEM:\s*(.+?)\]", line, re.IGNORECASE)
+        if m:
+            parts.append(f"\n**{m.group(1).strip()}**")
+            continue
+
+        # [BUTTON: Label | URL] → link button (collected separately)
+        m = re.match(r"\[BUTTON:\s*(.+?)\s*\|\s*(.+?)\]", line, re.IGNORECASE)
+        if m:
+            buttons.append((m.group(1).strip(), m.group(2).strip()))
+            continue
+
+        # Plain text
+        parts.append(line)
+
+    description = "\n".join(parts).strip()
+    return description, buttons
+
+
+@tree.command(name="announcement", description="[Admin] Send a rich formatted announcement")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    message = "Announcement text. Use \\n for newlines, [SECTION:], [ITEM:], [DIVIDER], [BUTTON: Label | URL]",
+    title   = "Main title shown at top of embed",
+    channel = "Channel to post in (defaults to current)",
+    ping    = "Who to ping",
+    color   = "Embed accent color",
+    image   = "Banner image URL (shown at bottom of embed)",
+    thumbnail = "Small icon image URL (top right of embed)",
+    footer  = "Custom footer text (defaults to your name)",
+)
+@app_commands.choices(
+    ping=[
+        app_commands.Choice(name="@everyone", value="everyone"),
+        app_commands.Choice(name="@here",     value="here"),
+        app_commands.Choice(name="None",      value="none"),
+    ],
+    color=[
+        app_commands.Choice(name="Purple (default)", value="purple"),
+        app_commands.Choice(name="Green",            value="green"),
+        app_commands.Choice(name="Blue",             value="blue"),
+        app_commands.Choice(name="Gold",             value="gold"),
+        app_commands.Choice(name="Red",              value="red"),
+        app_commands.Choice(name="White",            value="white"),
+    ],
+)
+async def announcement(
+    interaction : discord.Interaction,
+    message     : str,
+    title       : str                 = "📢 Announcement",
+    channel     : discord.TextChannel = None,
+    ping        : str                 = "none",
+    color       : str                 = "purple",
+    image       : str                 = None,
+    thumbnail   : str                 = None,
+    footer      : str                 = None,
+):
+    await interaction.response.defer(ephemeral=True)
+
+    target = channel or interaction.channel
+
+    color_map = {
+        "purple": 0x7c3aed,
+        "green":  0x34d399,
+        "blue":   0x60a5fa,
+        "gold":   0xfbbf24,
+        "red":    0xf87171,
+        "white":  0xeeeeee,
+    }
+    embed_color = color_map.get(color, 0x7c3aed)
+
+    # Parse rich formatting
+    description, buttons = parse_announcement(message)
+
+    embed = discord.Embed(
+        title       = title,
+        description = description,
+        color       = embed_color,
+    )
+
+    footer_text = footer or f"Zilem Method  •  {interaction.user.display_name}"
+    embed.set_footer(
+        text     = footer_text,
+        icon_url = interaction.user.display_avatar.url if interaction.user.display_avatar else None,
+    )
+    embed.timestamp = datetime.utcnow()
+
+    if image:
+        embed.set_image(url=image)
+
+    if thumbnail:
+        embed.set_thumbnail(url=thumbnail)
+
+    # Build view with any [BUTTON:] tags
+    view = None
+    if buttons:
+        view = discord.ui.View()
+        for label, url in buttons[:5]:   # Discord max 5 buttons per row
+            view.add_item(discord.ui.Button(
+                label = label,
+                url   = url,
+                style = discord.ButtonStyle.link,
+            ))
+
+    ping_text = f"@{ping}" if ping != "none" else None
+
+    try:
+        await target.send(content=ping_text, embed=embed, view=view)
+        await interaction.followup.send(
+            f"✅ Announcement sent to {target.mention}", ephemeral=True
+        )
+    except discord.Forbidden:
+        await interaction.followup.send(
+            "❌ I don't have permission to post in that channel.", ephemeral=True
+        )
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
+@tree.command(name="announce_help", description="[Admin] Show how to format rich announcements")
+@app_commands.checks.has_permissions(administrator=True)
+async def announce_help(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    embed = discord.Embed(
+        title       = "📋 Announcement Formatting Guide",
+        description = (
+            "Use these tags inside your `/announcement message:` to build rich posts.\n"
+            "Separate lines with **\\n** (backslash n).\n"
+        ),
+        color = 0x7c3aed,
+    )
+    embed.add_field(
+        name  = "Tags",
+        value = (
+            "`[SECTION: Title]` → Bold section header\n"
+            "`[ITEM: 01 | Label]` → Numbered item header\n"
+            "`[DIVIDER]` → Horizontal line ─────\n"
+            "`[BUTTON: Label | URL]` → Link button below embed\n"
+            "`\\n` → New line\n"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name  = "Example message",
+        value = (
+            "```"
+            "🔥 Big update is here!\\n"
+            "[DIVIDER]\\n"
+            "[SECTION: ✨ What's New]\\n"
+            "[ITEM: 01 | Faster Patching]\\n"
+            "We rewrote the core engine.\\n"
+            "[DIVIDER]\\n"
+            "[SECTION: II. How to Update]\\n"
+            "[ITEM: 02 | Re-download]\\n"
+            "Just refresh the site.\\n"
+            "[BUTTON: Open Site | https://zilem.netlify.app]"
+            "```"
+        ),
+        inline=False,
+    )
+    embed.set_footer(text="Only admins can use /announcement")
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ── /revokekey (admin) ────────────────────────────────────────────────────────
 @tree.command(name="revokekey", description="[Admin] Revoke a user's license key")
@@ -349,7 +560,11 @@ async def listkeys(interaction: discord.Interaction):
     for k in all_keys[:25]:
         info = TIER_INFO.get(k["tier"], TIER_INFO["guest"])
         lines.append(f"{info['emoji']} `{k['key']}` — **{k['display_name']}** ({k['tier']})")
-    embed = discord.Embed(title=f"🗝️ Active Keys ({len(all_keys)})", description="\n".join(lines), color=0x7c3aed)
+    embed = discord.Embed(
+        title       = f"🗝️ Active Keys ({len(all_keys)})",
+        description = "\n".join(lines),
+        color       = 0x7c3aed,
+    )
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ── /synckey (admin) ──────────────────────────────────────────────────────────
@@ -367,59 +582,20 @@ async def synckey(interaction: discord.Interaction):
             upsert_key(k["discord_id"], str(member), member.display_name, avatar, new_tier)
             updated += 1
     await interaction.followup.send(f"✅ Synced **{updated}** keys with current roles.", ephemeral=True)
-    # ── /announcement (admin) ─────────────────────────────────────────────────────
-@tree.command(name="announcement", description="Send an announcement embed to a channel")
-@app_commands.checks.has_permissions(administrator=True)
-@app_commands.describe(
-    message = "The announcement text",
-    title   = "Embed title (optional)",
-    channel = "Channel to send to (defaults to current)",
-    ping    = "Who to ping"
-)
-@app_commands.choices(ping=[
-    app_commands.Choice(name="@everyone", value="everyone"),
-    app_commands.Choice(name="@here",     value="here"),
-    app_commands.Choice(name="None",      value="none"),
-])
-async def announcement(
-    interaction: discord.Interaction,
-    message: str,
-    title:   str = "📢 Announcement",
-    channel: discord.TextChannel = None,
-    ping:    str = "none"
-):
-    await interaction.response.defer(ephemeral=True)
-    target = channel or interaction.channel
-
-    embed = discord.Embed(
-        title       = title,
-        description = message,
-        color       = 0x7c3aed
-    )
-    embed.set_footer(text=f"Announced by {interaction.user.display_name} • Zilem Method")
-    embed.timestamp = datetime.utcnow()
-
-    ping_text = f"@{ping}" if ping != "none" else None
-
-    try:
-        await target.send(content=ping_text, embed=embed)
-        await interaction.followup.send(
-            f"✅ Announcement sent to {target.mention}", ephemeral=True
-        )
-    except discord.Forbidden:
-        await interaction.followup.send(
-            "❌ I don't have permission to post in that channel.", ephemeral=True
-        )
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 # ── Error handler ─────────────────────────────────────────────────────────────
 @tree.error
 async def on_app_command_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.MissingPermissions):
-        await interaction.response.send_message("❌ You need administrator permission.", ephemeral=True)
+        try:
+            await interaction.response.send_message("❌ You need administrator permission.", ephemeral=True)
+        except discord.InteractionResponded:
+            await interaction.followup.send("❌ You need administrator permission.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"❌ Error: {error}", ephemeral=True)
+        try:
+            await interaction.response.send_message(f"❌ Error: {error}", ephemeral=True)
+        except discord.InteractionResponded:
+            await interaction.followup.send(f"❌ Error: {error}", ephemeral=True)
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
