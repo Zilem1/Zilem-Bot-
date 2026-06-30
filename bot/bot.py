@@ -15,21 +15,31 @@ GUILD_ID   = int(os.getenv("DISCORD_GUILD_ID", "0"))
 DB_PATH    = os.getenv("DB_PATH", "data/keys.db")
 
 ROLE_TIER_MAP = {
-    "admins":  "donor",
-    "donor":   "donor",
-    "booster": "booster",
-    "helper":  "helper",
-    "members": "member",
-    "member":  "member",
+    "admins":     "helper",
+    "zilem":      "helper",
+    "wick":       "helper",
+    "donor":      "donor",
+    "booster":    "booster",
+    "helper":     "helper",
+    "first 100":  "first100",
+    "first100":   "first100",
+    "members":    "member",
+    "member":     "member",
+    "tickety":    "guest",
 }
+# mb        = file size limit in MB
+# max_res   = label shown in embeds
+# max_fps   = FPS cap
+# patches   = weekly patch limit (None = unlimited)
 TIER_INFO = {
-    "donor":   {"label": "Donor",   "color": 0xa78bfa, "mb": 1024, "emoji": "💜", "code": "D"},
-    "booster": {"label": "Booster", "color": 0xfbbf24, "mb": 750,  "emoji": "⭐", "code": "B"},
-    "helper":  {"label": "Helper",  "color": 0x34d399, "mb": 500,  "emoji": "🟢", "code": "H"},
-    "member":  {"label": "Member",  "color": 0x60a5fa, "mb": 150,  "emoji": "🔵", "code": "M"},
-    "guest":   {"label": "Guest",   "color": 0x888888, "mb": 25,   "emoji": "⚪", "code": "G"},
+    "donor":    {"label": "Donor",     "color": 0xa78bfa, "mb": 1024, "emoji": "💎", "code": "D", "max_res": "4K",    "max_fps": None,  "patches": None},
+    "first100": {"label": "First 100", "color": 0xe879f9, "mb": 500,  "emoji": "🏅", "code": "F", "max_res": "4K",    "max_fps": None,  "patches": 5},
+    "booster":  {"label": "Booster",   "color": 0xfbbf24, "mb": 750,  "emoji": "🚀", "code": "B", "max_res": "4K",    "max_fps": 120,   "patches": 7},
+    "helper":   {"label": "Helper",    "color": 0x34d399, "mb": 500,  "emoji": "🛠️", "code": "H", "max_res": "1440p", "max_fps": None,  "patches": None},
+    "member":   {"label": "Member",    "color": 0x60a5fa, "mb": 150,  "emoji": "👥", "code": "M", "max_res": "1080p", "max_fps": 60,    "patches": 5},
+    "guest":    {"label": "Guest",     "color": 0x888888, "mb": 25,   "emoji": "👤", "code": "G", "max_res": "1080p", "max_fps": 60,    "patches": None},
 }
-TIER_PRIORITY = ["donor", "booster", "helper", "member", "guest"]
+TIER_PRIORITY = ["donor", "first100", "booster", "helper", "member", "guest"]
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def init_db():
@@ -47,6 +57,56 @@ def init_db():
             last_seen    TEXT
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS usage (
+            discord_id   TEXT PRIMARY KEY,
+            week_start   TEXT NOT NULL,
+            patch_count  INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def get_week_start() -> str:
+    from datetime import timedelta
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    return monday.isoformat()
+
+def get_usage(discord_id: str) -> int:
+    conn = get_db()
+    week = get_week_start()
+    row = conn.execute("SELECT week_start, patch_count FROM usage WHERE discord_id=?", (str(discord_id),)).fetchone()
+    conn.close()
+    if not row or row[0] != week:
+        return 0
+    return row[1]
+
+def increment_usage(discord_id: str) -> int:
+    conn = get_db()
+    week = get_week_start()
+    row = conn.execute("SELECT week_start, patch_count FROM usage WHERE discord_id=?", (str(discord_id),)).fetchone()
+    if not row or row[0] != week:
+        conn.execute("INSERT OR REPLACE INTO usage (discord_id, week_start, patch_count) VALUES (?,?,1)", (str(discord_id), week))
+        count = 1
+    else:
+        count = row[1] + 1
+        conn.execute("UPDATE usage SET patch_count=? WHERE discord_id=?", (count, str(discord_id)))
+    conn.commit()
+    conn.close()
+    return count
+
+def reset_usage(discord_id: str):
+    conn = get_db()
+    week = get_week_start()
+    conn.execute("INSERT OR REPLACE INTO usage (discord_id, week_start, patch_count) VALUES (?,?,0)", (str(discord_id), week))
+    conn.commit()
+    conn.close()
+
+def reset_all_usage():
+    conn = get_db()
+    week = get_week_start()
+    conn.execute("UPDATE usage SET week_start=?, patch_count=0", (week,))
     conn.commit()
     conn.close()
 
@@ -139,6 +199,12 @@ def tier_embed(key_info: dict, is_new: bool) -> discord.Embed:
     mb    = info["mb"]
     limit = f"{mb//1024} GB" if mb >= 1024 else f"{mb} MB"
     embed.add_field(name="File Limit",  value=limit, inline=True)
+    res   = info.get("max_res", "1080p")
+    fps   = f"{info['max_fps']} FPS" if info.get("max_fps") else "Unlimited FPS"
+    embed.add_field(name="Max Quality", value=f"{res} · {fps}", inline=True)
+    patches = info.get("patches")
+    patch_str = f"{patches}/week" if patches else "Unlimited"
+    embed.add_field(name="Weekly Patches", value=patch_str, inline=True)
     embed.add_field(name="Activate at", value="[zilem.netlify.app/](https://zilem.netlify.app/)", inline=False)
     if key_info.get("avatar_url"):
         embed.set_thumbnail(url=key_info["avatar_url"])
@@ -167,7 +233,14 @@ async def getkey(interaction: discord.Interaction):
     if not member:
         await interaction.followup.send("❌ Could not find you in this server.", ephemeral=True)
         return
-    tier       = get_user_tier(member)
+    tier = get_user_tier(member)
+    if tier == "guest":
+        await interaction.followup.send(
+            "❌ You don't have a role that qualifies for a key. "
+            "Get Member, Booster, or Donor to unlock the patcher.",
+            ephemeral=True
+        )
+        return
     username   = str(member)
     display    = member.display_name
     avatar     = str(member.display_avatar.url) if member.display_avatar else None
@@ -574,14 +647,27 @@ async def synckey(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     all_keys = list_all_keys()
     updated  = 0
+    revoked  = 0
     for k in all_keys:
         member = interaction.guild.get_member(int(k["discord_id"]))
-        if member:
-            new_tier = get_user_tier(member)
-            avatar   = str(member.display_avatar.url) if member.display_avatar else None
-            upsert_key(k["discord_id"], str(member), member.display_name, avatar, new_tier)
-            updated += 1
-    await interaction.followup.send(f"✅ Synced **{updated}** keys with current roles.", ephemeral=True)
+        if not member:
+            # User left the server — revoke their key entirely
+            revoke_key(k["discord_id"])
+            revoked += 1
+            continue
+        new_tier = get_user_tier(member)
+        if new_tier == "guest":
+            # Lost their qualifying role — key is revoked, not downgraded
+            revoke_key(k["discord_id"])
+            revoked += 1
+            continue
+        avatar = str(member.display_avatar.url) if member.display_avatar else None
+        upsert_key(k["discord_id"], str(member), member.display_name, avatar, new_tier)
+        updated += 1
+    await interaction.followup.send(
+        f"✅ Synced **{updated}** keys with current roles. Revoked **{revoked}** (no qualifying role).",
+        ephemeral=True
+    )
 
 # ── Error handler ─────────────────────────────────────────────────────────────
 @tree.error
@@ -599,3 +685,46 @@ async def on_app_command_error(interaction: discord.Interaction, error):
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
+
+# ── /myusage ──────────────────────────────────────────────────────────────────
+@tree.command(name="myusage", description="Check how many patches you've used this week")
+async def myusage(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    info = get_user_key(str(interaction.user.id))
+    if not info:
+        await interaction.followup.send("❌ You don't have a key yet. Use `/getkey` to generate one.", ephemeral=True)
+        return
+    tier     = info["tier"]
+    tier_inf = TIER_INFO.get(tier, TIER_INFO["guest"])
+    used     = get_usage(str(interaction.user.id))
+    limit    = tier_inf.get("patches")
+    limit_str = str(limit) if limit else "∞"
+
+    from datetime import timedelta, date
+    today   = datetime.utcnow().date()
+    monday  = today - timedelta(days=today.weekday())
+    next_monday = monday + timedelta(days=7)
+    days_left = (next_monday - today).days
+
+    embed = discord.Embed(title="📊 Your Weekly Usage", color=tier_inf["color"])
+    embed.add_field(name="Tier",         value=f"{tier_inf['emoji']} {tier_inf['label']}", inline=True)
+    embed.add_field(name="Patches Used", value=f"{used} / {limit_str}", inline=True)
+    embed.add_field(name="Resets In",    value=f"{days_left} day(s)", inline=True)
+    embed.set_footer(text=f"Week resets every Monday · {interaction.user.display_name}")
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+# ── /resetusage (admin) ───────────────────────────────────────────────────────
+@tree.command(name="resetusage", description="[Admin] Reset weekly patch usage — one user or everyone")
+@app_commands.checks.has_permissions(administrator=True)
+@app_commands.describe(
+    user="The user to reset (leave blank to reset ALL users)",
+)
+async def resetusage(interaction: discord.Interaction, user: discord.Member = None):
+    await interaction.response.defer(ephemeral=True)
+    if user:
+        reset_usage(str(user.id))
+        await interaction.followup.send(f"✅ Reset weekly usage for **{user.display_name}** back to 0.", ephemeral=True)
+    else:
+        reset_all_usage()
+        await interaction.followup.send("✅ Reset weekly patch usage for **all users** back to 0.", ephemeral=True)
