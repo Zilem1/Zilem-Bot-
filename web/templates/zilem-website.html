@@ -690,7 +690,6 @@ input[type=file] { display: none; }
 }
 .tier-card:hover::before { opacity: 1; }
 .tier-card[data-tier="member"]  { --tier-color: var(--blue); }
-.tier-card[data-tier="helper"]  { --tier-color: var(--green); }
 .tier-card[data-tier="booster"] { --tier-color: var(--amber); }
 .tier-card[data-tier="donor"]   { --tier-color: var(--purple-hi); }
 .tier-icon { font-size: 22px; margin-bottom: 12px; }
@@ -703,7 +702,6 @@ input[type=file] { display: none; }
   font-size: 11px; color: var(--text-3);
 }
 .tier-perk::before { content: '✓'; color: var(--green); font-family: var(--font-mono); font-size: 10px; flex-shrink: 0; }
-.tier-card[data-tier="guest"]   .tier-perk::before { color: var(--text-3); }
 .tier-card[data-tier="member"]  .tier-perk::before { color: var(--blue); }
 .tier-card[data-tier="booster"] .tier-perk::before { color: var(--amber); }
 .tier-card[data-tier="donor"]   .tier-perk::before { color: var(--purple-hi); }
@@ -824,7 +822,7 @@ footer {
   footer { flex-direction: column; gap: 14px; text-align: center; }
   .drop-zone { padding: 44px 24px; }
   .action-bar { padding: 12px 14px; }
-}
+}#logout-btn:hover { background: rgba(248,113,113,0.12); color: var(--red); border-color: rgba(248,113,113,0.3); }
 </style>
 </head>
 <body>
@@ -863,15 +861,37 @@ footer {
   <p class="hero-sub">Patch MP4 structure directly in your browser — no re-encoding, no uploads, no traces</p>
 
   <div class="tier-badge-row">
-    <span class="tier-chip chip-guest">Guest · 25MB</span>
-    <span class="tier-chip chip-member">Member · 150MB</span>
-    <span class="tier-chip chip-helper">Helper · 500MB</span>
-    <span class="tier-chip chip-booster">Booster · 750MB</span>
-    <span class="tier-chip chip-donor">Donor · 1GB</span>
+        <span class="tier-chip chip-member">Member · 150MB · 5/wk</span>
+    <span class="tier-chip chip-booster">Booster · 750MB · 7/wk</span>
+    <span class="tier-chip chip-donor">Donor · 1GB · Unlimited</span>
   </div>
 
   <!-- Patcher UI -->
   <div id="patcher-ui">
+
+    <!-- Live usage bar -->
+    <div id="usage-bar" style="display:none;margin-bottom:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px 16px;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="usage-avatar-wrap" style="display:none;width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(255,255,255,0.12);">
+          <img id="usage-avatar" src="" style="width:100%;height:100%;object-fit:cover;" />
+        </div>
+        <div>
+          <div id="usage-name" style="font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-1);"></div>
+          <div id="usage-tier-label" style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);"></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:18px;">
+        <div style="text-align:center;">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Patches this week</div>
+          <div id="usage-count" style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--text-1);">0 / ∞</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:3px;">Resets in</div>
+          <div id="usage-timer" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--amber);">—</div>
+        </div>
+      </div>
+    </div>
+
     <div class="drop-card" id="dropCard">
 
       <!-- Drop zone -->
@@ -915,7 +935,7 @@ footer {
       <!-- Box Inspector -->
       <div class="inspector-panel" id="inspectorPanel">
         <div class="inspector-header">
-          <span class="inspector-title">📦 Box Inspector</span>
+          <span class="inspector-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-3px;margin-right:4px;"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg> Box Inspector</span>
           <span style="font-size:9px;color:var(--text-3)">MP4 structure analysis</span>
         </div>
         <div class="inspector-body">
@@ -990,56 +1010,37 @@ footer {
   <h2 class="section-title">Pick your level</h2>
   <p class="section-sub">Get your key from our Discord bot to unlock higher limits</p>
   <div class="tiers-grid">
-    <div class="tier-card" data-tier="guest">
-      <div class="tier-icon">👤</div>
-      <div class="tier-name">Guest</div>
-      <div class="tier-limit">25<span class="tier-limit-lbl">MB</span></div>
-      <div class="tier-perks">
-        <div class="tier-perk">Full MP4 patcher</div>
-        <div class="tier-perk">Box inspector</div>
-        <div class="tier-perk">Instant download</div>
-      </div>
-    </div>
     <div class="tier-card" data-tier="member">
-      <div class="tier-icon">👥</div>
+      <div class="tier-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="2.8"/><path d="M3.5 19.5c0-3.2 2.5-5.3 5.5-5.3s5.5 2.1 5.5 5.3"/><circle cx="17" cy="8.5" r="2.2"/><path d="M14.8 14.5c2.3.3 4.2 2.2 4.2 5"/></svg></div>
       <div class="tier-name">Member</div>
       <div class="tier-limit">150<span class="tier-limit-lbl">MB</span></div>
       <div class="tier-perks">
-        <div class="tier-perk">All Guest perks</div>
-        <div class="tier-perk">6× file size limit</div>
+        <div class="tier-perk">Full MP4 patcher</div>
+        <div class="tier-perk">1080p · 60 FPS</div>
+        <div class="tier-perk">5 patches / week</div>
         <div class="tier-perk">File history (10)</div>
-        <div class="tier-perk">Priority console</div>
       </div>
     </div>
     <div class="tier-card featured" data-tier="booster">
       <div class="tier-badge-featured">Popular</div>
-      <div class="tier-icon">🚀</div>
+      <div class="tier-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 7-3 13-3-13 3-7z"/><path d="M9 14l-3 1 1-3"/><path d="M15 14l3 1-1-3"/></svg></div>
       <div class="tier-name">Booster</div>
       <div class="tier-limit">750<span class="tier-limit-lbl">MB</span></div>
       <div class="tier-perks">
         <div class="tier-perk">All Member perks</div>
-        <div class="tier-perk">30× file size limit</div>
+        <div class="tier-perk">4K · 120 FPS</div>
+        <div class="tier-perk">7 patches / week</div>
         <div class="tier-perk">Unlimited history</div>
-        <div class="tier-perk">Batch queue (3 files)</div>
-      </div>
-    </div>
-    <div class="tier-card" data-tier="helper">
-      <div class="tier-icon">🛠️</div>
-      <div class="tier-name">Helper</div>
-      <div class="tier-limit">500<span class="tier-limit-lbl">MB</span></div>
-      <div class="tier-perks">
-        <div class="tier-perk">All Member perks</div>
-        <div class="tier-perk">20× file size limit</div>
-        <div class="tier-perk">Unlimited history</div>
-        <div class="tier-perk">Server badge</div>
       </div>
     </div>
     <div class="tier-card" data-tier="donor">
-      <div class="tier-icon">💎</div>
+      <div class="tier-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 12L2 9l4-6z"/><path d="M2 9h20M9 3l-2 6 5 12 5-12-2-6"/></svg></div>
       <div class="tier-name">Donor</div>
       <div class="tier-limit">1<span class="tier-limit-lbl">GB</span></div>
       <div class="tier-perks">
         <div class="tier-perk">All perks unlocked</div>
+        <div class="tier-perk">4K · Unlimited FPS</div>
+        <div class="tier-perk">Unlimited patches</div>
         <div class="tier-perk">40× file size limit</div>
         <div class="tier-perk">Batch queue (10 files)</div>
         <div class="tier-perk">Donor badge + priority</div>
@@ -1055,32 +1056,32 @@ footer {
   <p class="section-sub">Tools you actually need — nothing you don't</p>
   <div class="features-grid">
     <div class="feat-card">
-      <div class="feat-icon">📦</div>
+      <div class="feat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-3px;margin-right:4px;"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>
       <div class="feat-title">Box Inspector</div>
       <div class="feat-desc">Visualize the full MP4 box tree — moov, mdat, trak, stbl — before and after patching. See exactly what changed.</div>
     </div>
     <div class="feat-card">
-      <div class="feat-icon">⚡</div>
+      <div class="feat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
       <div class="feat-title">Zero Re-encoding</div>
       <div class="feat-desc">Patches the MP4 structure directly in memory. Your video data is never touched — frame-perfect output in seconds.</div>
     </div>
     <div class="feat-card">
-      <div class="feat-icon">🔒</div>
+      <div class="feat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
       <div class="feat-title">100% Local</div>
       <div class="feat-desc">Your file never leaves your device. All processing happens client-side. No servers, no uploads, no logs.</div>
     </div>
     <div class="feat-card">
-      <div class="feat-icon">🔑</div>
+      <div class="feat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 4l3 3M19 7l2 2"/></svg></div>
       <div class="feat-title">Key System</div>
       <div class="feat-desc">Get a key from our Discord bot and enter it here to instantly unlock your tier's full file size limit.</div>
     </div>
     <div class="feat-card">
-      <div class="feat-icon">📊</div>
+      <div class="feat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M12 20V4M20 20v-7"/></svg></div>
       <div class="feat-title">File Health Score</div>
       <div class="feat-desc">Instant analysis of your MP4's patchability — resolution, duration, structure integrity — scored out of 100.</div>
     </div>
     <div class="feat-card">
-      <div class="feat-icon">🕐</div>
+      <div class="feat-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></div>
       <div class="feat-title">Processing History</div>
       <div class="feat-desc">Track every file you've patched. File name, size, and patch stats — stored locally, stays private.</div>
     </div>
@@ -1106,7 +1107,7 @@ footer {
     </div>
     <div class="faq-item">
       <div class="faq-q">How do file size limits work?</div>
-      <div class="faq-a"><div class="faq-a-inner">Guest users get 25MB with no key. Enter your key to unlock your Discord role's limit — Member gets 150MB, Helper 500MB, Booster 750MB, and Donor 1GB.</div></div>
+      <div class="faq-a"><div class="faq-a-inner">You need a key from our Discord bot to use the patcher. Your file size limit is set by your Discord role — Member gets 150MB, Booster 750MB, and Donor 1GB.</div></div>
     </div>
     <div class="faq-item">
       <div class="faq-q">Will the patched file look different?</div>
@@ -1147,12 +1148,6 @@ footer {
     </div>
     <div class="key-modal-body">
 
-      <!-- Tab: Key / Tier Select -->
-      <div class="key-tabs">
-        <button class="key-tab active" id="tab-key" onclick="switchTab('key')">Enter Key</button>
-        <button class="key-tab" id="tab-tier" onclick="switchTab('tier')">Select Tier</button>
-      </div>
-
       <!-- Key Panel -->
       <div id="panel-key">
         <div class="key-modal-title">Unlock your tier</div>
@@ -1163,7 +1158,7 @@ footer {
             placeholder="ZILEM-D-XXXX-XXXX"
             autocomplete="off" spellcheck="false"
             oninput="onKeyInput(this)"/>
-          <div class="key-input-icon" id="keyInputIcon">🔑</div>
+          <div class="key-input-icon" id="keyInputIcon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 4l3 3M19 7l2 2"/></svg></div>
         </div>
 
         <button class="btn-verify" id="verifyBtn" onclick="verifyKey()" disabled>
@@ -1179,70 +1174,22 @@ footer {
           Get Key from Discord Bot
         </button>
 
+        <!-- Discord profile, shown once a key is active -->
+        <div id="discord-profile-card" style="display:none;margin-top:14px;align-items:center;gap:12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:12px 14px;">
+          <img id="modal-avatar" src="" style="width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.12);flex-shrink:0;" />
+          <div style="flex:1;min-width:0;">
+            <div id="modal-username" style="font-family:var(--font-display);font-weight:700;font-size:13px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+            <div id="modal-tier-limits" style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);margin-top:2px;"></div>
+          </div>
+          <button id="logout-btn" onclick="logoutKey()" title="Log out" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);flex-shrink:0;transition:background 0.15s,color 0.15s;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+
         <div class="key-modal-note">
-          Your key is verified locally. It encodes your tier level.<br>
+          Your key is checked against our server in real time. It is never stored permanently.<br>
           Keys expire after 30 days. Use <code style="color:var(--purple-hi)">/getkey</code> in our Discord.
         </div>
-      </div>
-
-      <!-- Tier Select Panel (dev/demo) -->
-      <div id="panel-tier" style="display:none">
-        <div class="key-modal-title">Select Tier</div>
-        <div class="key-modal-sub">Demo mode — select a tier to preview limits.</div>
-        <div class="tier-select-list">
-          <div class="tier-select-item" onclick="selectTierItem(this,'guest',25)">
-            <div class="tier-select-left">
-              <div class="tier-dot" style="background:rgba(255,255,255,0.3)"></div>
-              <div>
-                <div class="tier-select-name">Guest</div>
-                <div class="tier-select-mb">25 MB</div>
-              </div>
-            </div>
-            <div class="tier-select-check">✓</div>
-          </div>
-          <div class="tier-select-item" onclick="selectTierItem(this,'member',150)">
-            <div class="tier-select-left">
-              <div class="tier-dot" style="background:var(--blue)"></div>
-              <div>
-                <div class="tier-select-name">Member</div>
-                <div class="tier-select-mb">150 MB</div>
-              </div>
-            </div>
-            <div class="tier-select-check">✓</div>
-          </div>
-          <div class="tier-select-item" onclick="selectTierItem(this,'helper',500)">
-            <div class="tier-select-left">
-              <div class="tier-dot" style="background:var(--green)"></div>
-              <div>
-                <div class="tier-select-name">Helper</div>
-                <div class="tier-select-mb">500 MB</div>
-              </div>
-            </div>
-            <div class="tier-select-check">✓</div>
-          </div>
-          <div class="tier-select-item" onclick="selectTierItem(this,'booster',750)">
-            <div class="tier-select-left">
-              <div class="tier-dot" style="background:var(--amber)"></div>
-              <div>
-                <div class="tier-select-name">Booster 🚀</div>
-                <div class="tier-select-mb">750 MB</div>
-              </div>
-            </div>
-            <div class="tier-select-check">✓</div>
-          </div>
-          <div class="tier-select-item" onclick="selectTierItem(this,'donor',1024)">
-            <div class="tier-select-left">
-              <div class="tier-dot" style="background:var(--purple-hi)"></div>
-              <div>
-                <div class="tier-select-name">Donor 💎</div>
-                <div class="tier-select-mb">1 GB</div>
-              </div>
-            </div>
-            <div class="tier-select-check">✓</div>
-          </div>
-        </div>
-        <button class="btn-verify" id="applyTierBtn" onclick="applySelectedTier()" disabled>Apply Tier</button>
-        <div class="key-modal-note" style="margin-top:12px">In production, tiers are set by verified keys from the Discord bot.</div>
       </div>
 
     </div>
@@ -1286,49 +1233,57 @@ function tikquickPatch(inputBytes){const data=inputBytes instanceof Uint8Array?i
 //  KEY SYSTEM
 //  ─────────────────────────────────────────
 //  Key format: ZILEM-{TIER_CODE}-{TIMESTAMP}-{CHECKSUM}
-//  TIER_CODE: G=guest, M=member, H=helper, B=booster, D=donor
+//  TIER_CODE: G=guest, M=member, B=booster, D=donor, H=helper(private), F=first100(private)
 //  In production: verify against your backend API
 //  Bot generates: ZILEM-D-{base36 timestamp}-{hmac checksum}
 // ════════════════════════════════════════════
 
 const KEY_TIER_MAP = {
-  'G': { name: 'guest',   mb: 25   },
-  'M': { name: 'member',  mb: 150  },
-  'H': { name: 'helper',  mb: 500  },
-  'B': { name: 'booster', mb: 750  },
-  'D': { name: 'donor',   mb: 1024 },
+  'G': { name: 'guest',    mb: 25,   maxRes: '1080p', maxFPS: 60,   patches: null },
+  'M': { name: 'member',   mb: 150,  maxRes: '1080p', maxFPS: 60,   patches: 5    },
+  'B': { name: 'booster',  mb: 750,  maxRes: '4K',    maxFPS: 120,  patches: 7    },
+  'D': { name: 'donor',    mb: 1024, maxRes: '4K',    maxFPS: null, patches: null },
+  'H': { name: 'helper',   mb: 500,  maxRes: '4K',    maxFPS: null, patches: null },
+  'F': { name: 'first100', mb: 500,  maxRes: '4K',    maxFPS: null, patches: 5    },
 };
 
-// ─── CONFIGURE YOUR VERIFY ENDPOINT HERE ───────────
-// Point this at your deployed bot's web server (Railway etc).
-// Leave as '' to fall back to client-side demo verification.
-const VERIFY_API_ENDPOINT = 'https://YOUR-RAILWAY-APP.up.railway.app/api/validate';
+// ─── Your Railway/backend endpoint ──────────────────
+const VERIFY_API_ENDPOINT = 'https://zilem-bot-production.up.railway.app/api/validate';
 // ────────────────────────────────────────────────────
 
+// Always calls the real API — no demo fallback, no client-side parsing
 async function verifyKeyWithAPI(key) {
   const trimmed = key.trim().toUpperCase();
   if (!VERIFY_API_ENDPOINT || VERIFY_API_ENDPOINT.includes('YOUR-RAILWAY-APP')) {
-    // Demo mode: parse key client-side
-    // Real key format from your Discord bot:
-    // ZILEM-{TIER}-XXXX-XXXX
-    const parts = trimmed.split('-');
-    if (parts[0] !== 'ZILEM' || parts.length < 3) return { valid: false, reason: 'Invalid key format' };
-    const tierCode = parts[1];
-    const tier = KEY_TIER_MAP[tierCode];
-    if (!tier) return { valid: false, reason: 'Unknown tier code' };
-    // In demo mode, any key with ZILEM-X-... format works
-    return { valid: true, tier: tier.name, mb: tier.mb, expiresIn: '30 days' };
+    return { valid: false, reason: 'Auth server not configured. Contact admin.' };
   }
-  // Real API call to the Discord bot's backend
   try {
-    const resp = await fetch(`${VERIFY_API_ENDPOINT}?key=${encodeURIComponent(trimmed)}`, {
-      method: 'GET'
+    const resp = await fetch(VERIFY_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: trimmed })
     });
     const data = await resp.json();
     if (!resp.ok || !data.valid) return { valid: false, reason: data.error || 'Invalid key' };
-    return { valid: true, tier: data.tier, mb: data.limit_mb, expiresIn: '30 days' };
+    return { valid: true, tier: data.tier, mb: data.limit_mb,
+             avatar: data.avatar_url || null, username: data.display_name || data.username || '' };
   } catch (e) {
-    return { valid: false, reason: 'Network error — check connection' };
+    console.error('Zilem auth fetch failed:', e);
+    return { valid: false, reason: 'Cannot reach auth server (' + e.message + ')' };
+  }
+}
+
+// Re-validates stored key against server on every page load
+async function revalidateStoredKey() {
+  const savedKey = sessionStorage.getItem('zilem_key');
+  if (!savedKey) return;
+  const result = await verifyKeyWithAPI(savedKey);
+  if (!result.valid) {
+    // Key rejected by server (revoked, expired, or tier changed away) — full logout
+    logoutKey();
+    showToast('Session expired — please re-enter your key.', 'err');
+  } else {
+    applyTier(result.tier, result.mb, result.avatar, result.username, result.patches_used, result.patches_limit);
   }
 }
 
@@ -1339,7 +1294,7 @@ const S = {
   pendingTierName: null, pendingTierMB: null,
 };
 
-const TIER_LIMITS = { guest:25, member:150, helper:500, booster:750, donor:1024 };
+const TIER_LIMITS = { guest:25, member:150, helper:500, booster:750, donor:1024, first100:500 };
 
 // ── DOM ───────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -1349,13 +1304,6 @@ const fileInput = $('fileInput');
 // ── Key Modal ─────────────────────────────────────────────────
 function openKeyModal() { $('key-modal').classList.add('show'); }
 function closeKeyModal() { $('key-modal').classList.remove('show'); }
-
-function switchTab(tab) {
-  $('tab-key').classList.toggle('active', tab==='key');
-  $('tab-tier').classList.toggle('active', tab==='tier');
-  $('panel-key').style.display = tab==='key' ? 'block' : 'none';
-  $('panel-tier').style.display = tab==='tier' ? 'block' : 'none';
-}
 
 function onKeyInput(el) {
   const val = el.value.trim();
@@ -1385,14 +1333,16 @@ async function verifyKey() {
     statusEl.className = 'key-status show ok';
     statusEl.innerHTML = `✓ Key valid — <strong>${result.tier.toUpperCase()}</strong> tier unlocked (${result.mb >= 1024 ? '1 GB' : result.mb + ' MB'})`;
 
-    // Save key to localStorage
-    localStorage.setItem('zilem_key', key);
-    localStorage.setItem('zilem_tier', result.tier);
-    localStorage.setItem('zilem_mb', result.mb);
+    // Store key in sessionStorage only (cleared when tab/browser closes)
+    sessionStorage.setItem('zilem_key', key);
+    sessionStorage.setItem('zilem_tier', result.tier);
+    sessionStorage.setItem('zilem_mb', result.mb);
+    if (result.avatar)   sessionStorage.setItem('zilem_avatar', result.avatar);
+    if (result.username) sessionStorage.setItem('zilem_display_name', result.username);
 
     // Apply tier
     setTimeout(() => {
-      applyTier(result.tier, result.mb);
+      applyTier(result.tier, result.mb, result.avatar, result.username, result.patches_used, result.patches_limit);
       closeKeyModal();
       showToast(`✓ ${result.tier.charAt(0).toUpperCase()+result.tier.slice(1)} tier unlocked!`, 'ok');
     }, 800);
@@ -1403,33 +1353,51 @@ async function verifyKey() {
   }
 }
 
-function applyTier(tierName, tierMB) {
-  S.tierName = tierName;
-  S.tierMB = tierMB;
-
+function applyTier(tierName, tierMB, avatar, username, patchesUsed, patchesLimit) {
+  S.tierName     = tierName;
+  S.tierMB       = tierMB;
+  S.patchesUsed  = (patchesUsed  != null) ? patchesUsed  : 0;
+  S.patchesLimit = (patchesLimit != null) ? patchesLimit : null;
   const btn = $('nav-key-btn');
   const label = tierName.charAt(0).toUpperCase() + tierName.slice(1);
   btn.classList.add('active');
-  btn.innerHTML = `<span>✓</span> ${label} · ${tierMB >= 1024 ? '1 GB' : tierMB + ' MB'}`;
-
+  btn.innerHTML = '<span>✓</span> ' + label + ' · ' + (tierMB >= 1024 ? '1 GB' : tierMB + ' MB');
+  updateUsageBar(avatar, username, patchesUsed, patchesLimit);
+  fillProfileCard(tierName, tierMB, avatar, username, patchesUsed, patchesLimit);
   if (S.file) handleFile(S.file);
   updateHistoryUI();
 }
 
-// Tier select (demo panel)
-let _pendingTierEl = null;
-function selectTierItem(el, name, mb) {
-  document.querySelectorAll('.tier-select-item').forEach(i => i.classList.remove('selected'));
-  el.classList.add('selected');
-  S.pendingTierName = name;
-  S.pendingTierMB = mb;
-  $('applyTierBtn').disabled = false;
+function fillProfileCard(tierName, tierMB, avatar, username, patchesUsed, patchesLimit) {
+  const card = document.getElementById('discord-profile-card');
+  if (!card) return;
+  const av = avatar   || sessionStorage.getItem('zilem_avatar')       || '';
+  const nm = username || sessionStorage.getItem('zilem_display_name') || '';
+  if (av) document.getElementById('modal-avatar').src = av;
+  document.getElementById('modal-username').textContent = nm;
+  const limMB = tierMB >= 1024 ? '1 GB' : tierMB + ' MB';
+  const used  = (patchesUsed  != null) ? patchesUsed  : (S.patchesUsed  || 0);
+  const limit = (patchesLimit != null) ? patchesLimit : (S.patchesLimit || null);
+  const label = tierName.charAt(0).toUpperCase() + tierName.slice(1);
+  document.getElementById('modal-tier-limits').textContent =
+    label + ' · ' + limMB + ' · ' + used + '/' + (limit || '∞') + ' patches this week';
+  card.style.display = 'flex';
 }
-function applySelectedTier() {
-  if (!S.pendingTierName) return;
-  applyTier(S.pendingTierName, S.pendingTierMB);
-  closeKeyModal();
-  showToast(`✓ ${S.pendingTierName.charAt(0).toUpperCase()+S.pendingTierName.slice(1)} tier applied`, 'ok');
+
+// ── Logout ──────────────────────────────────────────────────
+function logoutKey() {
+  sessionStorage.clear();
+  S.tierName = 'guest'; S.tierMB = 25; S.patchesUsed = 0; S.patchesLimit = null;
+  const btn = $('nav-key-btn');
+  btn.classList.remove('active');
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> Enter Key';
+  const card = document.getElementById('discord-profile-card');
+  if (card) card.style.display = 'none';
+  const bar = document.getElementById('usage-bar');
+  if (bar) bar.style.display = 'none';
+  if ($('keyInput')) $('keyInput').value = '';
+  if ($('keyStatus')) $('keyStatus').textContent = '';
+  showToast('Logged out.', 'ok');
 }
 
 function openDiscordServer() {
@@ -1437,19 +1405,85 @@ function openDiscordServer() {
   window.open('https://discord.gg/YOUR_INVITE_CODE', '_blank');
 }
 
-// ── Load saved key on init ─────────────────────────────────────
+// ── Timer helpers ─────────────────────────────────────────────
+function getWeekStart() {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const day = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
+  return d.toISOString().slice(0, 10);
+}
+function nextMonday() {
+  const d = new Date(getWeekStart() + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 7); return d;
+}
+function formatCountdown(ms) {
+  if (ms <= 0) return '00:00:00';
+  const s = Math.floor(ms/1000), days = Math.floor(s/86400),
+        hrs = Math.floor((s%86400)/3600), mins = Math.floor((s%3600)/60), secs = s%60;
+  if (days > 0) return days+'d '+String(hrs).padStart(2,'0')+'h '+String(mins).padStart(2,'0')+'m';
+  return String(hrs).padStart(2,'0')+':'+String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+}
+setInterval(function() {
+  const el = document.getElementById('usage-timer');
+  if (!el) return;
+  const ms = nextMonday() - Date.now();
+  el.textContent = formatCountdown(ms);
+  el.style.color = ms < 3600000 ? 'var(--red)' : 'var(--amber)';
+}, 1000);
+
+// ── Usage bar (server-driven) ───────────────────────────────────
+function updateUsageBar(avatar, username, patchesUsed, patchesLimit) {
+  const bar = document.getElementById('usage-bar');
+  if (!bar) return;
+  if (!sessionStorage.getItem('zilem_key') || S.tierName === 'guest') { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const used = (patchesUsed != null) ? patchesUsed : (S.patchesUsed||0);
+  const lim  = (patchesLimit != null) ? patchesLimit : (S.patchesLimit||null);
+  const uc = document.getElementById('usage-count');
+  if (uc) { uc.textContent = used+' / '+(lim||'∞'); uc.style.color = (lim&&used>=lim)?'var(--red)':'var(--text-1)'; }
+  const tl = document.getElementById('usage-tier-label');
+  if (tl) tl.textContent = S.tierName.charAt(0).toUpperCase()+S.tierName.slice(1);
+  const av = avatar   || sessionStorage.getItem('zilem_avatar')||'';
+  const nm = username || sessionStorage.getItem('zilem_display_name')||'';
+  const img = document.getElementById('usage-avatar'), wrap = document.getElementById('usage-avatar-wrap');
+  if (av && img) { img.src = av; if (wrap) wrap.style.display = 'block'; }
+  const unEl = document.getElementById('usage-name');
+  if (unEl) unEl.textContent = nm;
+  const timerEl = document.getElementById('usage-timer');
+  if (timerEl) timerEl.textContent = formatCountdown(nextMonday()-Date.now());
+}
+function checkPatchAllowed() { return !S.patchesLimit || (S.patchesUsed||0) < S.patchesLimit; }
+function incrementUsage() { S.patchesUsed = (S.patchesUsed||0)+1; updateUsageBar(); return S.patchesUsed; }
+
+// ── Load saved key on init — always re-validates with server ──
+// Re-checks the key against the server every 60s — auto-logout if revoked
+setInterval(function() {
+  if (sessionStorage.getItem('zilem_key')) revalidateStoredKey();
+}, 60000);
+
 (function loadSavedKey() {
-  const savedTier = localStorage.getItem('zilem_tier');
-  const savedMB = parseInt(localStorage.getItem('zilem_mb') || '25');
-  if (savedTier && KEY_TIER_MAP[savedTier.charAt(0).toUpperCase()]) {
-    // Silently restore
-    S.tierName = savedTier;
-    S.tierMB = savedMB;
-    const btn = $('nav-key-btn');
-    const label = savedTier.charAt(0).toUpperCase() + savedTier.slice(1);
-    btn.classList.add('active');
-    btn.innerHTML = `<span>✓</span> ${label} · ${savedMB >= 1024 ? '1 GB' : savedMB + ' MB'}`;
-  }
+  const savedKey  = sessionStorage.getItem('zilem_key');
+  const savedTier = sessionStorage.getItem('zilem_tier');
+  const savedMB   = parseInt(sessionStorage.getItem('zilem_mb') || '25');
+  if (!savedKey || !savedTier) return; // guest — nothing to restore
+
+  // Optimistically show the tier while revalidation runs in background
+  S.tierName = savedTier;
+  S.tierMB   = savedMB;
+  const btn  = $('nav-key-btn');
+  const label = savedTier.charAt(0).toUpperCase() + savedTier.slice(1);
+  btn.classList.add('active');
+  btn.innerHTML = `<span>✓</span> ${label} · ${savedMB >= 1024 ? '1 GB' : savedMB + ' MB'} <span style="font-size:9px;opacity:0.5">(validating…)</span>`;
+
+  // Hit the server — if key is bad, wipe the session immediately
+  revalidateStoredKey().then(() => {
+    // Remove the "validating…" label if still showing
+    const b = $('nav-key-btn');
+    if (b && b.classList.contains('active')) {
+      b.innerHTML = b.innerHTML.replace(/<span style="font-size:9px;opacity:0\.5">\(validating…\)<\/span>/, '');
+    }
+  });
 })();
 
 // ── Logging ───────────────────────────────────────────────────
@@ -1479,14 +1513,26 @@ function showToast(msg, type='') {
 }
 
 // ── Drag/Drop ─────────────────────────────────────────────────
-dropZone.addEventListener('click', () => { if (!S.processing) fileInput.click(); });
-fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropCard.classList.add('drag-over'); });
+function hasValidKey() {
+  return !!sessionStorage.getItem('zilem_key') && S.tierName !== 'guest';
+}
+function requireKeyThen(fn) {
+  if (!hasValidKey()) {
+    showToast('A key is required to use the patcher. Get one from our Discord.', 'warn');
+    openKeyModal();
+    return;
+  }
+  fn();
+}
+
+dropZone.addEventListener('click', () => { if (!S.processing) requireKeyThen(() => fileInput.click()); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) requireKeyThen(() => handleFile(e.target.files[0])); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); if (hasValidKey()) dropCard.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropCard.classList.remove('drag-over'));
 dropZone.addEventListener('drop', e => {
   e.preventDefault(); dropCard.classList.remove('drag-over');
   const f = e.dataTransfer.files[0];
-  if (f) handleFile(f);
+  if (f) requireKeyThen(() => handleFile(f));
 });
 
 function handleFile(file) {
@@ -1558,7 +1604,7 @@ function showBoxInspector(file) {
   const mb = file.size / 1048576;
   const fakeSampleEst = Math.round((mb * 1000) * 0.56);
   tree.innerHTML = `
-    <div style="color:var(--text-2);font-weight:700;margin-bottom:8px;font-size:11px;">📄 ${file.name.split('.').pop().toUpperCase()} Container</div>
+    <div style="color:var(--text-2);font-weight:700;margin-bottom:8px;font-size:11px;">${file.name.split('.').pop().toUpperCase()} Container</div>
     <div>
       <div class="box-node lit" style="padding-left:0;border:none">
         <span class="box-type">ftyp</span><span class="box-size">isom</span>
@@ -1608,6 +1654,16 @@ $('runBtn').addEventListener('click', runPatcher);
 
 async function runPatcher() {
   if (!S.file || S.processing) return;
+  if (!hasValidKey()) {
+    showToast('A key is required to use the patcher.', 'error');
+    openKeyModal();
+    return;
+  }
+  if (!checkPatchAllowed()) {
+    const ms = nextMonday() - Date.now();
+    showToast('Weekly limit reached (' + (S.patchesUsed||0) + '/' + S.patchesLimit + '). Resets in ' + formatCountdown(ms) + '.', 'error');
+    return;
+  }
   S.processing = true;
 
   $('patcher-ui').style.display = 'none';
@@ -1678,6 +1734,7 @@ async function runPatcher() {
 
   await delay(300);
   setProgress(100, 'Done!');
+  incrementUsage(); // counts here, not on download
 
   const base = S.file.name.replace(/\.[^/.]+$/, '');
   S.outputName = base + '_zilem.mp4';
