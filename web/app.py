@@ -17,12 +17,33 @@ DB_PATH    = os.getenv("DB_PATH", os.path.join(os.path.dirname(os.path.abspath(_
 API_SECRET = os.getenv("API_SECRET", "change-me-secret")  # For admin endpoints
 
 TIER_INFO = {
-    "donor":   {"label": "Donor",   "color": "#a78bfa", "mb": 1024, "emoji": "💜"},
-    "booster": {"label": "Booster", "color": "#fbbf24", "mb": 750,  "emoji": "⭐"},
-    "helper":  {"label": "Helper",  "color": "#34d399", "mb": 500,  "emoji": "🟢"},
-    "member":  {"label": "Member",  "color": "#60a5fa", "mb": 150,  "emoji": "🔵"},
-    "guest":   {"label": "Guest",   "color": "#888888", "mb": 25,   "emoji": "⚪"},
+    "donor":    {"label": "Donor",     "color": "#a78bfa", "mb": 1024, "emoji": "💎", "max_res": "4K",    "max_fps": None, "patches": None},
+    "first100": {"label": "First 100", "color": "#e879f9", "mb": 500,  "emoji": "🏅", "max_res": "4K",    "max_fps": None, "patches": 5   },
+    "booster":  {"label": "Booster",   "color": "#fbbf24", "mb": 750,  "emoji": "🚀", "max_res": "4K",    "max_fps": 120,  "patches": 7   },
+    "helper":   {"label": "Helper",    "color": "#34d399", "mb": 500,  "emoji": "🛠️","max_res": "4K",    "max_fps": None, "patches": None},
+    "member":   {"label": "Member",    "color": "#60a5fa", "mb": 150,  "emoji": "👥", "max_res": "1080p", "max_fps": 60,   "patches": 5   },
+    "guest":    {"label": "Guest",     "color": "#888888", "mb": 25,   "emoji": "👤", "max_res": "1080p", "max_fps": 60,   "patches": None},
 }
+
+def get_week_start():
+    from datetime import timedelta
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    return monday.isoformat()
+
+def get_usage_count(discord_id: str) -> int:
+    try:
+        conn = get_db()
+        week = get_week_start()
+        row = conn.execute(
+            "SELECT week_start, patch_count FROM usage WHERE discord_id=?", (str(discord_id),)
+        ).fetchone()
+        conn.close()
+        if not row or row[0] != week:
+            return 0
+        return row[1]
+    except Exception:
+        return 0
 
 def get_db():
     return sqlite3.connect(DB_PATH)
@@ -33,43 +54,66 @@ def row_to_dict(row):
     return dict(zip(["key","discord_id","username","display_name","avatar_url","tier","created_at","last_seen"], row))
 
 # ── Public: Validate a key ─────────────────────────────────────────────────────
-@app.route("/api/validate", methods=["GET"])
+@app.route("/api/validate", methods=["POST", "OPTIONS"])
 def validate():
-    """Called by your Zilem website to validate a key."""
-    key = request.args.get("key", "").strip().upper()
+    """Called by the Zilem website to validate a key. Always server-authoritative."""
+    # CORS preflight
+    if request.method == "OPTIONS":
+        r = jsonify({}); r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return r, 204
+
+    body = request.get_json(silent=True) or {}
+    key  = body.get("key", "").strip().upper()
     if not key:
-        return jsonify({"valid": False, "error": "No key provided"}), 400
+        return _cors(jsonify({"valid": False, "error": "No key provided"}), 400)
 
     conn = get_db()
     row  = conn.execute("SELECT * FROM keys WHERE key=?", (key,)).fetchone()
-    # Update last_seen
     if row:
-        conn.execute("UPDATE keys SET last_seen=? WHERE key=?", (datetime.utcnow().isoformat(), key))
+        conn.execute("UPDATE keys SET last_seen=? WHERE key=?",
+                     (datetime.utcnow().isoformat(), key))
         conn.commit()
     conn.close()
 
     if not row:
-        return jsonify({"valid": False, "error": "Key not found"}), 404
+        return _cors(jsonify({"valid": False, "error": "Invalid key"}), 401)
 
     info = row_to_dict(row)
     tier = info["tier"]
+
+    # Defensive: guest tier is not issuable and should never authenticate
+    if tier == "guest":
+        return _cors(jsonify({"valid": False, "error": "Key tier no longer valid"}), 401)
+
     ti   = TIER_INFO.get(tier, TIER_INFO["guest"])
 
-    return jsonify({
-        "valid":        True,
-        "key":          info["key"],
-        "tier":         tier,
-        "tier_label":   ti["label"],
-        "tier_color":   ti["color"],
-        "tier_emoji":   ti["emoji"],
-        "limit_mb":     ti["mb"],
-        "discord_id":   info["discord_id"],
-        "username":     info["username"],
-        "display_name": info["display_name"],
-        "avatar_url":   info["avatar_url"],
-        "created_at":   info["created_at"],
-        "last_seen":    info["last_seen"],
-    })
+    patches_limit = ti.get("patches")
+    patches_used  = get_usage_count(info["discord_id"]) if patches_limit else 0
+
+    return _cors(jsonify({
+        "valid":          True,
+        "tier":           tier,
+        "tier_label":     ti["label"],
+        "tier_emoji":     ti["emoji"],
+        "limit_mb":       ti["mb"],
+        "max_res":        ti.get("max_res", "1080p"),
+        "max_fps":        ti.get("max_fps"),
+        "patches_limit":  patches_limit,
+        "patches_used":   patches_used,
+        "discord_id":     info["discord_id"],
+        "username":       info["username"],
+        "display_name":   info["display_name"],
+        "avatar_url":     info["avatar_url"],
+    }))
+
+
+def _cors(response, status=200):
+    """Add CORS header so the frontend can reach the API."""
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.status_code = status
+    return response
 
 # ── Public: User profile card (for activate page) ─────────────────────────────
 @app.route("/api/profile/<key>", methods=["GET"])
