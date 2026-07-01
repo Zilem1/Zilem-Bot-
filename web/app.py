@@ -109,6 +109,92 @@ def validate():
     }))
 
 
+def get_db_immediate():
+    # Separate connection in autocommit mode so we can issue our own
+    # BEGIN IMMEDIATE below. That grabs SQLite's write lock right away
+    # (not lazily on first write), so two /api/use requests for the same
+    # key arriving at the same instant can't both read "0 used" before
+    # either one commits — the second has to wait for the first to finish.
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.isolation_level = None
+    return conn
+
+# ── Public: Record one patch use (server-authoritative, atomic) ───────────────
+@app.route("/api/use", methods=["POST", "OPTIONS"])
+def use_patch():
+    """Called once per completed patch. This is the real enforcement point —
+    checks the weekly count and increments it in the same locked transaction,
+    so there's nothing left on the client (refresh, re-entering the key,
+    editing sessionStorage, calling the JS directly) that can affect the
+    outcome. Everything relevant is looked up server-side from the key."""
+    if request.method == "OPTIONS":
+        r = jsonify({}); r.headers["Access-Control-Allow-Origin"] = "*"
+        r.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        r.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return r, 204
+
+    body = request.get_json(silent=True) or {}
+    key  = body.get("key", "").strip().upper()
+    if not key:
+        return _cors(jsonify({"ok": False, "error": "No key provided"}), 400)
+
+    conn = get_db_immediate()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+
+        row = conn.execute("SELECT discord_id, tier FROM keys WHERE key=?", (key,)).fetchone()
+        if not row:
+            conn.execute("ROLLBACK")
+            return _cors(jsonify({"ok": False, "error": "Invalid key"}), 401)
+
+        discord_id, tier = row
+        if tier == "guest":
+            conn.execute("ROLLBACK")
+            return _cors(jsonify({"ok": False, "error": "Key tier no longer valid"}), 401)
+
+        ti = TIER_INFO.get(tier, TIER_INFO["guest"])
+        patches_limit = ti.get("patches")
+
+        if patches_limit is None:
+            # Unlimited tier — nothing to track, but still touch last_seen.
+            conn.execute("UPDATE keys SET last_seen=? WHERE key=?",
+                         (datetime.utcnow().isoformat(), key))
+            conn.execute("COMMIT")
+            return _cors(jsonify({"ok": True, "patches_used": None, "patches_limit": None}))
+
+        week = get_week_start()
+        urow = conn.execute(
+            "SELECT week_start, patch_count FROM usage WHERE discord_id=?", (discord_id,)
+        ).fetchone()
+        current = urow[1] if (urow and urow[0] == week) else 0
+
+        if current >= patches_limit:
+            conn.execute("ROLLBACK")
+            return _cors(jsonify({
+                "ok": False, "error": "limit_reached",
+                "patches_used": current, "patches_limit": patches_limit
+            }), 403)
+
+        new_count = current + 1
+        conn.execute("""
+            INSERT INTO usage (discord_id, week_start, patch_count) VALUES (?,?,?)
+            ON CONFLICT(discord_id) DO UPDATE SET week_start=excluded.week_start, patch_count=excluded.patch_count
+        """, (discord_id, week, new_count))
+        conn.execute("UPDATE keys SET last_seen=? WHERE key=?",
+                     (datetime.utcnow().isoformat(), key))
+        conn.execute("COMMIT")
+
+        return _cors(jsonify({"ok": True, "patches_used": new_count, "patches_limit": patches_limit}))
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
 def _cors(response, status=200):
     """Add CORS header so the frontend can reach the API."""
     response.headers["Access-Control-Allow-Origin"] = "*"
