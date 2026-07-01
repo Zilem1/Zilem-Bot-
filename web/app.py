@@ -90,7 +90,9 @@ def validate():
     ti   = TIER_INFO.get(tier, TIER_INFO["guest"])
 
     patches_limit = ti.get("patches")
-    patches_used  = get_usage_count(info["discord_id"]) if patches_limit else 0
+    # Track usage for everyone, even unlimited tiers, so the site can show
+    # "N used" against an infinity symbol instead of always showing 0.
+    patches_used  = get_usage_count(info["discord_id"])
 
     return _cors(jsonify({
         "valid":          True,
@@ -155,20 +157,16 @@ def use_patch():
         ti = TIER_INFO.get(tier, TIER_INFO["guest"])
         patches_limit = ti.get("patches")
 
-        if patches_limit is None:
-            # Unlimited tier — nothing to track, but still touch last_seen.
-            conn.execute("UPDATE keys SET last_seen=? WHERE key=?",
-                         (datetime.utcnow().isoformat(), key))
-            conn.execute("COMMIT")
-            return _cors(jsonify({"ok": True, "patches_used": None, "patches_limit": None}))
-
         week = get_week_start()
         urow = conn.execute(
             "SELECT week_start, patch_count FROM usage WHERE discord_id=?", (discord_id,)
         ).fetchone()
         current = urow[1] if (urow and urow[0] == week) else 0
 
-        if current >= patches_limit:
+        # Only capped tiers get rejected at the limit. Unlimited tiers
+        # (patches_limit is None) skip straight to incrementing below —
+        # they still get counted, just never blocked.
+        if patches_limit is not None and current >= patches_limit:
             conn.execute("ROLLBACK")
             return _cors(jsonify({
                 "ok": False, "error": "limit_reached",
